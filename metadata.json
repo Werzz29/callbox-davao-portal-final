@@ -1,0 +1,8 @@
+{
+  "name": "Callbox Davao Employee Portal",
+  "description": "Premium employee-only portal serving as the central gateway to Callbox Davao systems, resources, and announcements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
