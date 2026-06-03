@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { ResourceLink, Announcement, ResourceDocument, AuditLog } from '../types';
+import { ResourceLink, Announcement, ResourceDocument, AuditLog, Employee } from '../types';
 
 // Accessing environment variables for Supabase via import.meta.env
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
@@ -154,3 +154,92 @@ export async function fetchRemoteAuditLogs(): Promise<AuditLog[] | null> {
     return null;
   }
 }
+
+export async function fetchRemoteEmployees(): Promise<Employee[] | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('employees')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.warn('Supabase query error (employees):', error.message);
+      return null;
+    }
+
+    if (data) {
+      // Map database row keys from snake_case to camelCase
+      return data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        email: item.email,
+        position: item.position,
+        department: item.department,
+        role: item.role,
+        avatarUrl: item.avatar_url || '',
+        phone: item.phone || '',
+        empId: item.emp_id,
+        joinedDate: item.joined_date,
+        gender: item.gender,
+        password: item.password || ''
+      })) as Employee[];
+    }
+  } catch (err) {
+    console.error('Failed to fetch employees from Supabase', err);
+  }
+  return null;
+}
+
+export async function upsertRemoteEmployee(employee: Employee): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const dbRow = {
+      id: employee.id,
+      name: employee.name,
+      email: employee.email,
+      position: employee.position,
+      department: employee.department,
+      role: employee.role,
+      avatar_url: employee.avatarUrl || '',
+      phone: employee.phone || '',
+      emp_id: employee.empId,
+      joined_date: employee.joinedDate,
+      gender: employee.gender,
+      password: employee.password || ''
+    };
+
+    const { error } = await supabase
+      .from('employees')
+      .upsert(dbRow, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase write error (employees):', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Failed to insert/update employee in Supabase', err);
+    return false;
+  }
+}
+
+export async function deleteRemoteEmployee(employeeId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase
+      .from('employees')
+      .delete()
+      .eq('id', employeeId);
+
+    if (error) {
+      console.error('Supabase delete error (employees):', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Failed to delete employee from Supabase', err);
+    return false;
+  }
+}
+

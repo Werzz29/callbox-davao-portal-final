@@ -44,6 +44,7 @@ export interface Announcement {
   publishedDate: string;
   isPinned: boolean;
   departmentScope?: string;
+  isCritical?: boolean;
 }
 
 export interface ResourceDocument {
@@ -83,3 +84,20 @@ export interface PortalActivity {
   activity: string;
   icon: string;
 }
+
+export interface ApprovalRequest {
+  id: string;
+  type: 'change_role' | 'delete_account';
+  hrId: string;
+  hrName: string;
+  employeeId: string;
+  employeeName: string;
+  details: {
+    oldRole?: UserRole;
+    newRole?: UserRole;
+    customPassword?: string;
+  };
+  status: 'pending' | 'accepted' | 'denied';
+  timestamp: string;
+}
+

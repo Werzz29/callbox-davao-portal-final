@@ -8,9 +8,9 @@ import { motion } from 'motion/react';
 import { 
   Users, Link, FileKey, Shield, ShieldCheck, Heart, Trash2, 
   Settings, CheckCircle, RefreshCw, UserPlus, FileWarning, KeyRound, BookmarkMinus, User, Upload, Sparkles,
-  Scan, Camera, Search
+  Scan, Camera, Search, FileSpreadsheet, FileText, Printer
 } from 'lucide-react';
-import { Employee, ResourceLink, UserRole } from '../types';
+import { Employee, ResourceLink, UserRole, ApprovalRequest } from '../types';
 import DefaultAvatar from './DefaultAvatar';
 
 interface AdminPanelProps {
@@ -23,6 +23,10 @@ interface AdminPanelProps {
   onRemoveLink: (linkId: string) => void;
   currentUserRole: UserRole;
   currentUserId?: string;
+  approvalRequests?: ApprovalRequest[];
+  onAcceptApprovalRequest?: (requestId: string) => void;
+  onDenyApprovalRequest?: (requestId: string) => void;
+  onDeleteApprovalRequest?: (requestId: string) => void;
 }
 
 const getInitials = (fullName: string) => {
@@ -41,11 +45,18 @@ export default function AdminPanel({
   onAddLink,
   onRemoveLink,
   currentUserRole,
-  currentUserId
+  currentUserId,
+  approvalRequests = [],
+  onAcceptApprovalRequest,
+  onDenyApprovalRequest,
+  onDeleteApprovalRequest
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'roster' | 'linkManager'>('roster');
+  const loggedInEmployee = employees.find(emp => emp.id === currentUserId);
+
+  const [activeTab, setActiveTab] = useState<'roster' | 'linkManager' | 'approvals'>('roster');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'alphabetical_asc' | 'alphabetical_desc' | 'id_asc' | 'role_hierarchy'>('alphabetical_asc');
 
   // Filter employees or default fallback
   const filteredEmployees = employees.filter((emp) => {
@@ -61,6 +72,36 @@ export default function AdminPanel({
     );
   });
 
+  // Sort employees - Super Admin always goes first, then selected sort option
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+    const aIsSuper = a.role === 'Super Admin' || a.empId === 'admin';
+    const bIsSuper = b.role === 'Super Admin' || b.empId === 'admin';
+
+    if (aIsSuper && !bIsSuper) return -1;
+    if (!aIsSuper && bIsSuper) return 1;
+
+    // Both are Super Admins or neither are Super Admins - apply current sort
+    if (sortBy === 'alphabetical_asc') {
+      return a.name.localeCompare(b.name);
+    }
+    if (sortBy === 'alphabetical_desc') {
+      return b.name.localeCompare(a.name);
+    }
+    if (sortBy === 'id_asc') {
+      return a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' });
+    }
+    if (sortBy === 'role_hierarchy') {
+      const roleOrder: Record<string, number> = { 'Super Admin': 0, 'HR': 1, 'Employee': 2, 'Inactive': 3 };
+      const orderA = roleOrder[a.role] ?? 99;
+      const orderB = roleOrder[b.role] ?? 99;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      return a.name.localeCompare(b.name);
+    }
+    return 0;
+  });
+
   // New Link states
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -69,6 +110,7 @@ export default function AdminPanel({
   const [newIcon, setNewIcon] = useState('ExternalLink');
   const [newIsForInactive, setNewIsForInactive] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   // New Employee lists states
   const [empName, setEmpName] = useState('');
@@ -440,6 +482,20 @@ export default function AdminPanel({
     e.preventDefault();
     if (!newTitle || !newUrl) return;
 
+    // Check duplicate URL and title in links array
+    const isDuplicateTitle = links.some(link => link.title.trim().toLowerCase() === newTitle.trim().toLowerCase());
+    const isDuplicateUrl = links.some(link => {
+      const urlA = link.url.trim().toLowerCase().replace(/\/+$/, '');
+      const urlB = newUrl.trim().toLowerCase().replace(/\/+$/, '');
+      return urlA === urlB;
+    });
+
+    if (isDuplicateTitle || isDuplicateUrl) {
+      setErrorMsg('Duplicate Entry Blocked: A system resource link with the same title or URL is already registered.');
+      setTimeout(() => setErrorMsg(''), 4500);
+      return;
+    }
+
     onAddLink({
       title: newTitle,
       description: newDesc || 'No desc provided.',
@@ -465,6 +521,22 @@ export default function AdminPanel({
     const today = new Date().toISOString().split('T')[0];
     const generatedCorpId = empCorpId || `CB-DVO-${Math.floor(100 + Math.random() * 900)}`;
     const finalEmail = `${empMailPrefix.trim().toLowerCase().replace(/@.*$/, '')}@callboxinc.com`;
+
+    // Check duplicates in employees array (Email, Name, CorpId)
+    const isDuplicateName = employees.some(emp => emp.name.trim().toLowerCase() === empName.trim().toLowerCase());
+    const isDuplicateEmail = employees.some(emp => emp.email.trim().toLowerCase() === finalEmail.trim().toLowerCase());
+    const isDuplicateId = employees.some(emp => emp.empId.trim().toLowerCase() === generatedCorpId.trim().toLowerCase());
+
+    if (isDuplicateName || isDuplicateEmail || isDuplicateId) {
+      let duplicateReason = '';
+      if (isDuplicateName) duplicateReason = `The name "${empName.trim()}" is already registered.`;
+      else if (isDuplicateEmail) duplicateReason = `The email address "${finalEmail}" is already registered.`;
+      else if (isDuplicateId) duplicateReason = `The Corporate ID "${generatedCorpId}" is already registered.`;
+
+      setErrorMsg(`Duplicate Entry Blocked: ${duplicateReason}`);
+      setTimeout(() => setErrorMsg(''), 5000);
+      return;
+    }
 
     onAddEmployee({
       name: empName.trim(),
@@ -503,9 +575,13 @@ export default function AdminPanel({
           }
           
           let importedCount = 0;
+          let skippedCount = 0;
           const delimiter = csvLines[0].includes(';') ? ';' : csvLines[0].includes('\t') ? '\t' : ',';
           const headers = csvLines[0].split(delimiter).map(h => h.trim().toLowerCase());
           
+          // Use temporary tracking array to avoid importing identical names/emails multiple times within the same CSV
+          const existingList = [...employees];
+
           for (let i = 1; i < csvLines.length; i++) {
             const columns = csvLines[i].split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, ''));
             if (columns.length < 2) continue;
@@ -533,24 +609,43 @@ export default function AdminPanel({
             const finalEmail = `${mailPrefix}@callboxinc.com`;
             const randomCorpId = `CB-DVO-${Math.floor(100 + Math.random() * 900)}`;
 
-            onAddEmployee({
-              name,
+            // Check if name or email matches any existing or already processed row to avoid duplicates
+            const isDuplicate = existingList.some(emp => 
+              emp.name.trim().toLowerCase() === name.trim().toLowerCase() ||
+              emp.email.trim().toLowerCase() === finalEmail.trim().toLowerCase()
+            );
+
+            if (isDuplicate) {
+              skippedCount++;
+              continue;
+            }
+
+            const newEmp = {
+              id: `emp-csv-${Date.now()}-${i}`,
+              name: name.trim(),
               email: finalEmail,
               empId: randomCorpId,
               department: shift,
               position: team,
-              role: 'Employee',
+              role: 'Employee' as const,
               avatarUrl: '',
               phone: '+63 917 555 ' + Math.floor(1000 + Math.random() * 9000),
               joinedDate: new Date().toISOString().split('T')[0],
-              gender: 'Male'
-            });
+              gender: 'Male' as const
+            };
+
+            onAddEmployee(newEmp);
+            existingList.push(newEmp);
             importedCount++;
           }
           
           playBeep(880, 0.12);
           setTimeout(() => playBeep(1100, 0.15), 80);
-          setSuccessMsg(`Imported ${importedCount} employees from CSV dataset!`);
+          if (skippedCount > 0) {
+            setSuccessMsg(`Imported ${importedCount} employees from CSV dataset! Skipped ${skippedCount} duplicate profiles.`);
+          } else {
+            setSuccessMsg(`Imported ${importedCount} employees from CSV dataset!`);
+          }
           setUploadError('');
           setTimeout(() => setSuccessMsg(''), 4000);
         } catch {
@@ -640,6 +735,292 @@ export default function AdminPanel({
     }, 1200);
   };
 
+  const handleExportCSV = () => {
+    playBeep(440, 0.1);
+    const exportable = sortedEmployees.filter(emp => emp.role !== 'Super Admin' && emp.empId !== 'admin');
+    const headers = ['Employee ID', 'Full Name', 'Email Address', 'Shift Schedule', 'Team Designation', 'Clearance Level'];
+    const rows = exportable.map(emp => [
+      emp.empId || 'N/A',
+      emp.name,
+      emp.email,
+      emp.department,
+      emp.position,
+      emp.role
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(e => e.map(val => `"${val.replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `davao_roster_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportDocs = () => {
+    playBeep(480, 0.1);
+    const exportable = sortedEmployees.filter(emp => emp.role !== 'Super Admin' && emp.empId !== 'admin');
+    const htmlContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <title>Davao Node - Roster Index Report</title>
+        <style>
+          body { font-family: 'Arial', sans-serif; padding: 2in; }
+          h1 { text-align: center; color: #1e3a8a; font-size: 20pt; text-transform: uppercase; margin-bottom: 20pt; }
+          .meta-box { border: 1px solid #d1d5db; padding: 10pt; margin-bottom: 20pt; background-color: #f3f4f6; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15pt; }
+          th { border: 1px solid #9ca3af; background-color: #e5e7eb; padding: 8pt; text-align: left; font-weight: bold; }
+          td { border: 1px solid #cbd5e1; padding: 6pt; }
+        </style>
+      </head>
+      <body>
+        <h1>Callbox Davao Intranet Gateway Node</h1>
+        <h2 style="text-align: center; color: #4b5563;">Official Directory Registry & Security Roster</h2>
+        <div class="meta-box">
+          <p><strong>Export Date:</strong> ${new Date().toLocaleDateString()}</p>
+          <p><strong>System Standard:</strong> Callbox Corporate Security Directive</p>
+          <p><strong>Total Scanned Entities:</strong> ${exportable.length} Active Records (Excluding Super Admins)</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID Seq</th>
+              <th>Full Name</th>
+              <th>Email Address</th>
+              <th>Schedule Group</th>
+              <th>Designation/Team</th>
+              <th>Auth Class</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${exportable.map((emp, idx) => `
+              <tr>
+                <td>${emp.empId || `EMP-${idx+1}`}</td>
+                <td><strong>${emp.name}</strong></td>
+                <td>${emp.email}</td>
+                <td>${emp.department}</td>
+                <td>${emp.position}</td>
+                <td>${emp.role}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `davao_roster_regulatory_index_${new Date().toISOString().split('T')[0]}.doc`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    playBeep(520, 0.1);
+    const exportable = sortedEmployees.filter(emp => emp.role !== 'Super Admin' && emp.empId !== 'admin');
+    
+    const htmlContent = `
+      <html>
+        <head>
+          <title>DAVAO_NODE_COGNITIVE_DIRECTORY_REPORT</title>
+          <style>
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+              padding: 40px; 
+              color: #0f172a;
+              background-color: #ffffff;
+            }
+            .header { 
+              border-bottom: 2px solid #0f172a; 
+              padding-bottom: 12px; 
+              margin-bottom: 24px; 
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+            }
+            .title { 
+              font-size: 20px; 
+              font-weight: 800; 
+              text-transform: uppercase; 
+              letter-spacing: 0.5px; 
+              color: #0f172a; 
+            }
+            .subtitle { 
+              font-size: 10px; 
+              text-transform: uppercase; 
+              font-family: monospace; 
+              color: #4b5563; 
+              margin-top: 4px; 
+            }
+            .security-badge {
+              text-transform: uppercase;
+              font-family: monospace;
+              font-size: 10px;
+              font-weight: 800;
+              background-color: #ef4444;
+              color: #ffffff;
+              padding: 4px 8px;
+              border-radius: 4px;
+            }
+            .meta-grid { 
+              margin-bottom: 30px; 
+              font-size: 11px; 
+              color: #334155; 
+              display: grid; 
+              grid-template-columns: 1fr 1fr; 
+              gap: 8px; 
+              background: #f8fafc; 
+              padding: 12px; 
+              border-radius: 6px; 
+              border: 1px solid #e2e8f0;
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin-top: 20px; 
+              font-size: 11px; 
+            }
+            th { 
+              border-bottom: 2px solid #0f172a; 
+              padding: 8px 6px; 
+              text-align: left; 
+              font-weight: bold; 
+              color: #0f172a; 
+              text-transform: uppercase; 
+              font-size: 9px; 
+              font-family: monospace; 
+            }
+            td { 
+              border-bottom: 1px solid #e2e8f0; 
+              padding: 8px 6px; 
+              color: #334155; 
+            }
+            tr:nth-child(even) { 
+              background-color: #fafafa; 
+            }
+            .footer { 
+              margin-top: 60px; 
+              font-size: 8px; 
+              text-align: center; 
+              color: #64748b; 
+              font-family: monospace; 
+              border-top: 1px solid #e2e8f0; 
+              padding-top: 12px; 
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">Callbox Davao Directory Index</div>
+              <div class="subtitle">Secure Operational Gateway Node • Active Security Ledger</div>
+            </div>
+            <div class="security-badge">
+              CONFIDENTIAL // SYSTEM OWNER ACCESS ONLY
+            </div>
+          </div>
+          
+          <div class="meta-grid">
+            <div><strong>Export Date:</strong> ${new Date().toISOString().replace('T', ' ').substring(0, 19)} UTC</div>
+            <div><strong>Operating Class:</strong> Callbox Corporate Security Standard</div>
+            <div><strong>Active Directory Size:</strong> ${exportable.length} cataloged accounts</div>
+            <div><strong>Intranet Environment Version:</strong> v2_secured_release</div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 10%"># Sequence ID</th>
+                <th style="width: 25%">Full Legal Name</th>
+                <th style="width: 25%">Authorized Email</th>
+                <th style="width: 15%">Shift Group</th>
+                <th style="width: 15%">Operational Team</th>
+                <th style="width: 10%">Security Clearance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${exportable.map((emp, i) => `
+                <tr>
+                  <td><code>${emp.empId || `EMP-${1000 + i}`}</code></td>
+                  <td><strong>${emp.name}</strong></td>
+                  <td>${emp.email}</td>
+                  <td>${emp.department} Schedule</td>
+                  <td>${emp.position}</td>
+                  <td><strong>${emp.role.toUpperCase()}</strong></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            Generated via authorized administrator session. Permanent records synchronized under compliance requirements of Davao Gateway Node corporate standards.
+          </div>
+        </body>
+      </html>
+    `;
+
+    let printed = false;
+    try {
+      const printWin = window.open('', '_blank');
+      if (printWin) {
+        printWin.document.write(htmlContent + `
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        `);
+        printWin.document.close();
+        printed = true;
+      }
+    } catch (err) {
+      console.warn("Popup or iframe sandbox prevented opening secondary window, falling back to clean iframe printing protocol:", err);
+    }
+
+    if (!printed) {
+      try {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          doc.write(htmlContent);
+          doc.close();
+          setTimeout(() => {
+            if (iframe.contentWindow) {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }
+            setTimeout(() => {
+              document.body.removeChild(iframe);
+            }, 1000);
+          }, 150);
+        }
+      } catch (err) {
+        console.error("Critical: Failed to invoke both native window print and sandbox fallback:", err);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6" id="admin-management-module">
       {/* Panel Headers */}
@@ -649,7 +1030,7 @@ export default function AdminPanel({
             <Shield className="h-4 w-4" /> System Governance Unit
           </div>
           <h2 className="font-display text-2xl font-bold tracking-tight text-white">Central Admin Panel</h2>
-          <p className="text-sm text-gray-400">Manage Davao directory lists, elevate employee permissions, register users, and add external CRM interfaces.</p>
+          <p className="text-sm text-gray-400">Manage Callbox Davao directory lists, elevate employee permissions, register users, and add external CRM interfaces.</p>
         </div>
 
         {/* Admin only badge indicator */}
@@ -681,12 +1062,35 @@ export default function AdminPanel({
         >
           <Link className="h-4 w-4 shrink-0" /> CRM Link Catalog Editor
         </button>
+
+        <button
+          onClick={() => setActiveTab('approvals')}
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 min-h-[44px] rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'approvals' 
+              ? 'bg-brand-primary text-brand-dark font-bold' 
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <FileKey className="h-4 w-4 shrink-0" /> Access Approvals Queue
+          {approvalRequests.filter(r => r.status === 'pending').length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-[9px] font-bold">
+              {approvalRequests.filter(r => r.status === 'pending').length}
+            </span>
+          )}
+        </button>
       </div>
 
       {successMsg && activeTab === 'roster' && (
         <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono flex items-center gap-2 animate-pulse">
           <CheckCircle className="h-4.5 w-4.5 shrink-0" />
           <span>{successMsg}</span>
+        </div>
+      )}
+
+      {errorMsg && activeTab === 'roster' && (
+        <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono flex items-center gap-2 animate-pulse">
+          <FileWarning className="h-4.5 w-4.5 shrink-0 text-rose-400" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
@@ -890,31 +1294,62 @@ export default function AdminPanel({
                   <RefreshCw className="h-4 w-4" />
                 </button>
               </div>
+              
+              {loggedInEmployee?.empId === 'admin' && (
+                <div className="mb-4 p-3.5 rounded-2xl bg-brand-primary/10 border border-brand-primary/15 text-brand-primary font-sans text-xs flex items-start gap-2.5 animate-fade-in shadow-md">
+                  <ShieldCheck className="h-4.5 w-4.5 shrink-0 mt-0.5 text-brand-primary animate-pulse" />
+                  <div>
+                    <strong className="text-white text-[13px] font-display">Administrative Policy Active (User: admin)</strong>
+                    <p className="text-[11px] text-gray-300 mt-1 leading-relaxed">
+                      You are authenticated on the master <code className="text-brand-primary font-mono bg-brand-primary/10 px-1 py-0.2 rounded font-semibold">admin</code> console. You have unrestricted control to assign employee roles and manage user directories. Under enterprise policy rules, the master <code className="text-brand-primary font-mono bg-brand-primary/10 px-1 py-0.2 rounded font-semibold">admin</code> identity is fixed and protected against deletions.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* SEARCH FILTER BAR */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Search by name, shift, position, or role..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-14 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary font-mono"
-                  title="Search employees"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-[10px] font-mono hover:underline cursor-pointer border-none bg-transparent"
-                    title="Clear search"
+              <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, shift, position, or role..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-14 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary font-mono"
+                    title="Search employees"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-[10px] font-mono hover:underline cursor-pointer border-none bg-transparent"
+                      title="Clear search"
+                    >
+                      CLEAR
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider whitespace-nowrap">Sort:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => {
+                      playBeep(450, 0.05);
+                      setSortBy(e.target.value as any);
+                    }}
+                    className="bg-brand-dark/90 border border-white/10 text-white rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-brand-primary cursor-pointer leading-tight min-h-[38px] w-full sm:w-auto"
+                    title="Sort employees"
                   >
-                    CLEAR
-                  </button>
-                )}
+                    <option value="alphabetical_asc">Name (A-Z)</option>
+                    <option value="alphabetical_desc">Name (Z-A)</option>
+                    <option value="id_asc">ID Sequence</option>
+                    <option value="role_hierarchy">Scope Hierarchy</option>
+                  </select>
+                </div>
               </div>
 
               <div className="overflow-auto max-h-[500px] pr-1">
-                {filteredEmployees.length === 0 ? (
+                {sortedEmployees.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 font-mono text-xs border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-2">
                     <Search className="h-5 w-5 text-gray-600 animate-pulse" />
                     <span>No matching accounts found for "{searchQuery}"</span>
@@ -931,7 +1366,7 @@ export default function AdminPanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredEmployees.map((emp) => (
+                      {sortedEmployees.map((emp) => (
                       <tr key={emp.id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
                         <td className="py-3">
                           <div className="flex items-center gap-2.5">
@@ -992,13 +1427,22 @@ export default function AdminPanel({
                                   No
                                 </button>
                               </div>
-                            ) : (
+                             ) : (
                               <>
                                 <select
                                   value={emp.role}
                                   onChange={(e) => handleRoleChangeSelect(emp.id, emp.name, e.target.value as UserRole)}
-                                  className="bg-brand-dark border border-white/10 rounded p-1.5 text-[10px] text-white uppercase font-mono font-bold focus:outline-none focus:border-brand-primary cursor-pointer h-8"
-                                  title="Update employee role"
+                                  disabled={emp.empId === 'admin' || emp.id === 'emp-superadmin-restricted' || emp.name === 'admin'}
+                                  className={`bg-brand-dark border border-white/10 rounded p-1.5 text-[10px] text-white uppercase font-mono font-bold focus:outline-none focus:border-brand-primary h-8 ${
+                                    emp.empId === 'admin' || emp.id === 'emp-superadmin-restricted' || emp.name === 'admin'
+                                      ? 'opacity-40 cursor-not-allowed'
+                                      : 'cursor-pointer'
+                                  }`}
+                                  title={
+                                    emp.empId === 'admin' || emp.id === 'emp-superadmin-restricted' || emp.name === 'admin'
+                                      ? "The primary Super Admin account role is fixed."
+                                      : "Update employee role"
+                                  }
                                 >
                                   <option value="Employee">Employee</option>
                                   <option value="HR">HR Manager</option>
@@ -1007,14 +1451,25 @@ export default function AdminPanel({
                                 </select>
                                 
                                 {emp.id !== currentUserId && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setDeletingId(emp.id)}
-                                    className="p-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 transition-all cursor-pointer h-8 w-8 flex items-center justify-center shrink-0"
-                                    title={`Remove ${emp.name} from roster`}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
+                                  emp.empId === 'admin' || emp.id === 'emp-superadmin-restricted' || emp.name === 'admin' ? (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="p-1.5 rounded bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed h-8 w-8 flex items-center justify-center shrink-0"
+                                      title="The primary Super Admin account is fixed and cannot be deleted."
+                                    >
+                                      <ShieldCheck className="h-3.5 w-3.5 text-gray-500" />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDeletingId(emp.id)}
+                                      className="p-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 cursor-pointer h-8 w-8 flex items-center justify-center shrink-0 transition-all"
+                                      title={`Remove ${emp.name} from roster`}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )
                                 )}
                               </>
                             )}
@@ -1027,6 +1482,49 @@ export default function AdminPanel({
                 )}
               </div>
             </div>
+
+            {/* LEDGER EXPORT ACTIONS DASHBOARD */}
+            <div className="mt-5 pt-4 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-semibold text-white tracking-wide uppercase font-mono flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-primary animate-pulse"></span>
+                  Governance ledger export
+                </h4>
+                <p className="text-[10px] text-gray-500 font-mono leading-none">SECURE ARCHIVAL DATASTREAM SERVICES</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-white/10 hover:border-brand-primary text-[11px] font-mono font-bold text-gray-300 hover:text-white bg-brand-dark/60 hover:bg-brand-primary/10 transition-all cursor-pointer h-10 shadow-sm"
+                  title="Export all records in raw comma-separated values layout"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                  CSV EXPORT
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportDocs}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-white/10 hover:border-brand-primary text-[11px] font-mono font-bold text-gray-300 hover:text-white bg-brand-dark/60 hover:bg-brand-primary/10 transition-all cursor-pointer h-10 shadow-sm"
+                  title="Generate a Microsoft Word compatible structure audit bulletin"
+                >
+                  <FileText className="h-4 w-4 text-blue-400" />
+                  DOCS EXPORT
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-white/10 hover:border-brand-primary text-[11px] font-mono font-bold text-gray-300 hover:text-white bg-brand-dark/60 hover:bg-brand-primary/10 transition-all cursor-pointer h-10 shadow-sm"
+                  title="Render printable high-fidelity directory index sheet"
+                >
+                  <Printer className="h-4 w-4 text-rose-400" />
+                  PDF / PRINT
+                </button>
+              </div>
+            </div>
+
           </div>
 
         </div>
@@ -1141,6 +1639,13 @@ export default function AdminPanel({
               <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono flex items-center gap-1.5 animate-pulse">
                 <CheckCircle className="h-4 w-4 shrink-0" />
                 <span>{successMsg}</span>
+              </div>
+            )}
+
+            {errorMsg && activeTab === 'linkManager' && (
+              <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono flex items-center gap-1.5 animate-pulse">
+                <FileWarning className="h-4 w-4 shrink-0 text-rose-400" />
+                <span>{errorMsg}</span>
               </div>
             )}
 
@@ -1401,6 +1906,203 @@ export default function AdminPanel({
             </ul>
           </div>
 
+        </div>
+      )}
+
+      {/* Access Approvals decisions queue */}
+      {activeTab === 'approvals' && (
+        <div className="space-y-6" id="access-approvals-queue-viewport">
+          <div className="glass-panel rounded-3xl p-6 border border-brand-primary/10 relative overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center border-b border-white/5 pb-6 mb-6">
+              <div className="lg:col-span-6 space-y-1.5">
+                <h3 className="font-display font-semibold text-lg text-white flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-brand-primary" /> Authority Access Approval System
+                </h3>
+                <p className="text-xs text-gray-400">
+                  {currentUserRole === 'Super Admin' 
+                    ? "Verify and authorize pending configuration updates submitted by HR personnel." 
+                    : "Track the authorization status of your directory role modification and deletion requests."}
+                </p>
+                <div className="flex gap-2.5 pt-1.5">
+                  <div className="px-3 py-1 bg-brand-dark/40 border border-white/5 rounded-xl flex items-center gap-1.5 text-[10px] font-mono">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
+                    <span className="text-gray-500">Pending:</span>
+                    <strong className="text-white font-bold">{approvalRequests.filter(r => r.status === 'pending').length}</strong>
+                  </div>
+                  <div className="px-3 py-1 bg-brand-dark/40 border border-white/5 rounded-xl flex items-center gap-1.5 text-[10px] font-mono">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span className="text-gray-500">Accepted:</span>
+                    <strong className="text-white font-bold">{approvalRequests.filter(r => r.status === 'accepted').length}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Secure Portal Integrity Metrics Widget */}
+              <div className="lg:col-span-6 p-4 rounded-2xl border border-brand-primary/10 bg-brand-primary/5 select-none shadow-inner shadow-black/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-brand-primary font-mono font-bold uppercase tracking-wider">Portal Integrity Metrics</p>
+                  <p className="text-[11px] text-gray-400 font-sans leading-relaxed">
+                    Local active registers: <span className="text-white font-mono font-bold">{links.length}</span> links, <span className="text-white font-mono font-bold">{employees.length}</span> employees.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playBeep(600, 0.15);
+                    if (window.confirm("CRITICAL PROTOCOL ACCESS: Are you sure you want to perform a hard Factory Reset? All locally modified employees, links, and system logs will be restored to clean system defaults instantly.")) {
+                      playBeep(400, 0.4);
+                      // Clear all localStorage keys starting with 'cb_'
+                      const keysToRemove: string[] = [];
+                      for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.startsWith('cb_') || key.startsWith('cb-'))) {
+                          keysToRemove.push(key);
+                        }
+                      }
+                      keysToRemove.forEach(key => localStorage.removeItem(key));
+                      // Force an instant page reload
+                      window.location.reload();
+                    }
+                  }}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white border border-rose-500/20 hover:border-transparent text-rose-400 text-xs font-mono font-bold uppercase transition-all shadow-md shadow-rose-955/25 shrink-0 flex items-center gap-1.5 justify-center cursor-pointer"
+                  title="Initialize master variables back to factory mock settings"
+                >
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+                  Restore Factory Settings
+                </button>
+              </div>
+            </div>
+
+            {/* MAIN LIST OF REQUESTS */}
+            {approvalRequests.length === 0 ? (
+              <div className="py-16 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-gray-500">
+                  <Shield className="h-6 w-6" />
+                </div>
+                <h4 className="font-display text-sm font-semibold text-white tracking-tight">No Approval Records Registered</h4>
+                <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
+                  The action decision queue is currently pristine and clear. All security policies are running at optimum capacity.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {approvalRequests.map((req) => (
+                  <div 
+                    key={req.id} 
+                    className={`p-5 rounded-2xl border transition-all ${
+                      req.status === 'pending'
+                        ? 'bg-yellow-500/5 border-yellow-500/10 hover:border-yellow-500/20'
+                        : req.status === 'accepted'
+                          ? 'bg-emerald-500/5 border-emerald-500/15'
+                          : 'bg-rose-500/5 border-rose-500/15'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                      <div className="space-y-2 flex-grow">
+                        {/* Title of request type */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold tracking-wider ${
+                            req.type === 'change_role' 
+                              ? 'bg-brand-primary/10 text-brand-primary border border-brand-primary/20' 
+                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          }`}>
+                            {req.type === 'change_role' ? 'Role Elevation' : 'Profile Deletion'}
+                          </span>
+
+                          <span className="text-xs text-gray-400 font-mono">{req.timestamp}</span>
+                        </div>
+
+                        {/* Request Summary Paragraph */}
+                        <p className="text-sm font-sans text-white leading-relaxed">
+                          {req.type === 'change_role' ? (
+                            <span>
+                              Requested to change authorization level for <strong className="text-white font-semibold">{req.employeeName}</strong> to role <span className="text-brand-accent font-mono font-bold uppercase">[{req.details.newRole}]</span>.
+                            </span>
+                          ) : (
+                            <span>
+                              Requested to irreversibly decompile employee account of <strong className="text-rose-400 font-semibold">{req.employeeName}</strong> from active rosters.
+                            </span>
+                          )}
+                        </p>
+
+                        {/* Metadata sender info */}
+                        <div className="flex items-center gap-2 pt-1 text-xs text-gray-400 font-mono">
+                          <User className="h-3.5 w-3.5 text-gray-500" />
+                          <span>Submitted by HR Desk:</span>
+                          <span className="text-yellow-400 font-semibold">{req.hrName}</span>
+                        </div>
+                      </div>
+
+                      {/* Action trigger decisions / state badge */}
+                      <div className="sm:self-center shrink-0 w-full sm:w-auto">
+                        {req.status === 'pending' ? (
+                          currentUserRole === 'Super Admin' ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onDenyApprovalRequest && onDenyApprovalRequest(req.id)}
+                                className="w-1/2 sm:w-auto px-4 py-2 text-xs font-mono font-bold uppercase rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 hover:border-rose-500/30 cursor-pointer transition-colors"
+                              >
+                                Deny Request
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onAcceptApprovalRequest && onAcceptApprovalRequest(req.id)}
+                                className="w-1/2 sm:w-auto px-4 py-2 text-xs font-mono font-bold uppercase rounded-xl bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow hover:scale-[1.02] cursor-pointer transition-all"
+                              >
+                                Accept & Apply
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono font-medium leading-none">
+                              <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping"></span>
+                              Awaiting Master Review
+                            </div>
+                          )
+                        ) : req.status === 'accepted' ? (
+                          <div className="flex items-center gap-2 justify-end">
+                            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-semibold leading-none">
+                              <ShieldCheck className="h-3.5 w-3.5 animate-pulse" />
+                              Approved & Executed
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playBeep(450, 0.08);
+                                onDeleteApprovalRequest && onDeleteApprovalRequest(req.id);
+                              }}
+                              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white border border-rose-500/20 hover:border-transparent text-rose-400 cursor-pointer transition-all flex items-center justify-center shadow-md shadow-rose-950/10"
+                              title="Delete approved request from queue"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 justify-end">
+                            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono font-semibold leading-none">
+                              <FileWarning className="h-3.5 w-3.5 text-rose-500" />
+                              Discarded & Denied
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playBeep(450, 0.08);
+                                onDeleteApprovalRequest && onDeleteApprovalRequest(req.id);
+                              }}
+                              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white border border-rose-500/20 hover:border-transparent text-rose-400 cursor-pointer transition-all flex items-center justify-center shadow-md shadow-rose-950/10"
+                              title="Delete denied request from queue"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

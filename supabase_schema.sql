@@ -60,9 +60,41 @@ ON public.audit_logs FOR INSERT
 WITH CHECK (true);
 
 
--- 3. SCHEMA INTEGRATION INFO
+-- 3. EMPLOYEES & ADMINS TABLE
+-- Accommodates both employees and administrators, distinguished by the 'role' column.
+CREATE TABLE IF NOT EXISTS public.employees (
+    id text PRIMARY KEY,
+    name text NOT NULL,
+    email text UNIQUE NOT NULL,
+    position text NOT NULL,
+    department text NOT NULL,
+    role text NOT NULL DEFAULT 'Employee'::text, -- 'Super Admin', 'HR', 'Employee', 'Inactive'
+    avatar_url text,
+    phone text,
+    emp_id text UNIQUE NOT NULL,
+    joined_date text NOT NULL,
+    gender text, -- 'Male', 'Female'
+    password text,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS for employees
+ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for public access (Read-Only) and full authorization in Demo Mode
+CREATE POLICY "Allow public read access to employees" 
+ON public.employees FOR SELECT 
+USING (true);
+
+CREATE POLICY "Allow anonymous read, write, and delete employees (Demo Mode)" 
+ON public.employees FOR ALL 
+USING (true)
+WITH CHECK (true);
+
+
+-- 4. SCHEMA INTEGRATION INFO
 -- The database schema has been prepared with full RLS security enabled.
--- No initial dummy/seed links are added to guarantee a clean slate.
--- The Super Admin ("Werzkie Tim") can log in and populate links directly 
--- from the Governance Panel which will write directly to public.resource_links.
+-- No initial dummy/seed data is added to guarantee a clean slate.
+-- Administrators can log in and manage the employee roster and link directory
+-- from the respective panels, sync-writing modifications directly to Supabase.
 

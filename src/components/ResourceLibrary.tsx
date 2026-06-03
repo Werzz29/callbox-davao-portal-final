@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileText, Search, Download, HelpCircle, ArrowUpRight, Upload, X, ShieldAlert,
-  ArrowRight, Check, HardDrive, Filter, BookOpen, FileSpreadsheet, Eye, Plus, CheckCircle2 
+  ArrowRight, Check, HardDrive, Filter, BookOpen, FileSpreadsheet, Eye, Plus, CheckCircle2, Trash2 
 } from 'lucide-react';
 import { ResourceDocument, UserRole } from '../types';
 
@@ -15,6 +15,7 @@ interface ResourceLibraryProps {
   documents: ResourceDocument[];
   onDownloadDoc: (docId: string) => void;
   onAddDocument: (doc: Omit<ResourceDocument, 'id' | 'downloadCount' | 'uploadedDate'>) => void;
+  onDeleteDocument?: (docId: string) => void;
   userRole: UserRole;
   employeeName: string;
 }
@@ -23,6 +24,7 @@ export default function ResourceLibrary({
   documents,
   onDownloadDoc,
   onAddDocument,
+  onDeleteDocument,
   userRole,
   employeeName
 }: ResourceLibraryProps) {
@@ -196,13 +198,26 @@ export default function ResourceLibrary({
                     <div>Downloads: <span className="text-gray-300">{doc.downloadCount}</span></div>
                   </div>
 
-                  <button
-                    onClick={() => handleDownload(doc)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-brand-primary hover:text-brand-dark hover:border-brand-primary hover:gold-glow transition-all duration-300 group cursor-pointer"
-                    title={`Retrieve ${doc.title}`}
-                  >
-                    <Download className="h-4.5 w-4.5 transition-transform group-hover:translate-y-0.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Authorized delete item button */}
+                    {(userRole === 'Super Admin' || userRole === 'HR') && onDeleteDocument && (
+                      <button
+                        onClick={() => onDeleteDocument(doc.id)}
+                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-300 text-red-400 group cursor-pointer"
+                        title={`Delete ${doc.title}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleDownload(doc)}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-brand-primary hover:text-brand-dark hover:border-brand-primary hover:gold-glow transition-all duration-300 group cursor-pointer"
+                      title={`Retrieve ${doc.title}`}
+                    >
+                      <Download className="h-4.5 w-4.5 transition-transform group-hover:translate-y-0.5" />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             );

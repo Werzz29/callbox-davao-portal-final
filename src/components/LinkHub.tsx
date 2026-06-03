@@ -38,6 +38,7 @@ interface LinkHubProps {
   onToggleFavorite: (linkId: string) => void;
   userRole: UserRole;
   employeeName: string;
+  currentUserId: string;
 }
 
 export default function LinkHub({ 
@@ -46,22 +47,33 @@ export default function LinkHub({
   favorites, 
   onToggleFavorite, 
   userRole,
-  employeeName 
+  employeeName,
+  currentUserId
 }: LinkHubProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [recentLaunches, setRecentLaunches] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('cb_recentLaunches');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [recentLaunches, setRecentLaunches] = useState<string[]>([]);
 
+  // Load user-scoped recently visited links
   React.useEffect(() => {
-    localStorage.setItem('cb_recentLaunches', JSON.stringify(recentLaunches));
-  }, [recentLaunches]);
+    if (currentUserId) {
+      try {
+        const saved = localStorage.getItem(`cb_recentLaunches_${currentUserId}`);
+        setRecentLaunches(saved ? JSON.parse(saved) : []);
+      } catch {
+        setRecentLaunches([]);
+      }
+    } else {
+      setRecentLaunches([]);
+    }
+  }, [currentUserId]);
+
+  // Persist user-scoped recently visited links
+  React.useEffect(() => {
+    if (currentUserId) {
+      localStorage.setItem(`cb_recentLaunches_${currentUserId}`, JSON.stringify(recentLaunches));
+    }
+  }, [recentLaunches, currentUserId]);
 
   const [launchingLink, setLaunchingLink] = useState<ResourceLink | null>(null);
   const [launchStep, setLaunchStep] = useState(0);

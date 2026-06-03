@@ -160,16 +160,21 @@ export default function SitemapOverlay({ isOpen, onClose }: SitemapOverlayProps)
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="border border-white/5 bg-black/40 p-3 rounded">
-                      <div className="text-brand-primary font-bold border-b border-white/10 pb-1 mb-2">1. profiles (Supabase auth.users child)</div>
+                      <div className="text-brand-primary font-bold border-b border-white/10 pb-1 mb-2">1. employees (Core staff & admin roster)</div>
                       <ul className="space-y-1 text-gray-400">
-                        <li>• <b className="text-gray-200">id:</b> uuid PRIMARY KEY</li>
-                        <li>• <b className="text-gray-200">employee_id:</b> varchar UNIQUE</li>
-                        <li>• <b className="text-gray-200">full_name:</b> text</li>
-                        <li>• <b className="text-gray-200">role:</b> user_role (enum)</li>
-                        <li>• <b className="text-gray-200">department:</b> varchar</li>
-                        <li>• <b className="text-gray-200">phone:</b> varchar</li>
+                        <li>• <b className="text-gray-200">id:</b> text PRIMARY KEY</li>
+                        <li>• <b className="text-gray-200">name:</b> text</li>
+                        <li>• <b className="text-gray-200">email:</b> text UNIQUE</li>
+                        <li>• <b className="text-gray-200">position:</b> text</li>
+                        <li>• <b className="text-gray-200">department:</b> text</li>
+                        <li>• <b className="text-gray-200">role:</b> text DEFAULT 'Employee'</li>
                         <li>• <b className="text-gray-200">avatar_url:</b> text</li>
-                        <li>• <b className="text-gray-200">created_at:</b> timestamp with timezone</li>
+                        <li>• <b className="text-gray-200">phone:</b> text</li>
+                        <li>• <b className="text-gray-200">emp_id:</b> text UNIQUE</li>
+                        <li>• <b className="text-gray-200">joined_date:</b> text</li>
+                        <li>• <b className="text-gray-200">gender:</b> text</li>
+                        <li>• <b className="text-gray-200">password:</b> text</li>
+                        <li>• <b className="text-gray-200">created_at:</b> timestamp</li>
                       </ul>
                     </div>
 

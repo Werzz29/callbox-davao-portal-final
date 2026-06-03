@@ -8,11 +8,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Fingerprint, LogOut, Bell, User, Clock, ShieldAlert, Sparkles, Cpu, 
   Mail, MessageSquare, Video, Database, PhoneCall, Users, Wrench, 
-  DollarSign, GraduationCap, BookOpen, BarChart3, AlertCircle, Bookmark, CheckCircle, Flame
+  DollarSign, GraduationCap, BookOpen, BarChart3, AlertCircle, Bookmark, CheckCircle, Flame, X
 } from 'lucide-react';
 
 // Types and Seed Data
-import { Employee, ResourceLink, Announcement, ResourceDocument, AuditLog, SystemNotification, UserRole } from './types';
+import { Employee, ResourceLink, Announcement, ResourceDocument, AuditLog, SystemNotification, UserRole, ApprovalRequest } from './types';
 import { mockAnnouncements, mockDocuments, mockAuditLogs, mockNotifications } from './mockData';
 
 const defaultAdmin: Employee = {
@@ -29,6 +29,49 @@ const defaultAdmin: Employee = {
   gender: 'Female'
 };
 
+const restrictedAdmin: Employee = {
+  id: 'emp-superadmin-restricted',
+  name: 'admin',
+  email: 'admin@callboxinc.com',
+  position: 'Systems Super Admin',
+  department: 'Executive',
+  role: 'Super Admin',
+  avatarUrl: '',
+  phone: '+63 920 000 0000',
+  empId: 'admin',
+  joinedDate: '2026-06-01',
+  gender: 'Male',
+  password: 'callboxdavaoadmin'
+};
+
+const defaultEmployee1: Employee = {
+  id: 'emp-02',
+  name: 'Jane Doe',
+  email: 'jane.doe@callboxinc.com',
+  position: 'Operations Specialist',
+  department: 'APAC',
+  role: 'Employee',
+  avatarUrl: '',
+  phone: '+63 920 111 2222',
+  empId: 'CB-2023-014F',
+  joinedDate: '2023-11-04',
+  gender: 'Female'
+};
+
+const defaultEmployee2: Employee = {
+  id: 'emp-03',
+  name: 'John Smith',
+  email: 'john.smith@callboxinc.com',
+  position: 'Lead Campaign Executive',
+  department: 'Operations',
+  role: 'Employee',
+  avatarUrl: '',
+  phone: '+63 918 333 4444',
+  empId: 'CB-2024-023M',
+  joinedDate: '2024-02-18',
+  gender: 'Male'
+};
+
 // Supabase Integration Services
 import { 
   isSupabaseConfigured, 
@@ -37,6 +80,9 @@ import {
   deleteRemoteLink, 
   logRemoteAudit, 
   fetchRemoteAuditLogs,
+  fetchRemoteEmployees,
+  upsertRemoteEmployee,
+  deleteRemoteEmployee,
   supabase
 } from './lib/supabase';
 
@@ -48,6 +94,9 @@ import LinkHub from './components/LinkHub';
 import AdminPanel from './components/AdminPanel';
 import ProfilePage from './components/ProfilePage';
 import DefaultAvatar from './components/DefaultAvatar';
+import Announcements from './components/Announcements';
+import ResourceLibrary from './components/ResourceLibrary';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 const getInitials = (fullName: string) => {
   const parts = fullName.trim().replaceAll(/[^a-zA-Z\s]/g, '').split(/\s+/);
@@ -85,7 +134,7 @@ export default function App() {
   const [allEmployees, setAllEmployees] = useState<Employee[]>(() => {
     try {
       const saved = localStorage.getItem('cb_allEmployees_v2');
-      const emps: Employee[] = saved ? JSON.parse(saved) : [defaultAdmin];
+      const emps: Employee[] = saved ? JSON.parse(saved) : [defaultAdmin, restrictedAdmin, defaultEmployee1, defaultEmployee2];
       
       const seenIds = new Set<string>();
       let changed = false;
@@ -100,12 +149,32 @@ export default function App() {
         return emp;
       });
       
+      // Ensure the fixed 'admin' account is correctly registered and updated in the system
+      const adminIndex = cleanEmps.findIndex(e => e.id === 'emp-superadmin-restricted' || e.empId === 'SuperAdmin' || e.empId === 'admin');
+      if (adminIndex === -1) {
+        cleanEmps.push(restrictedAdmin);
+        changed = true;
+      } else {
+        const existing = cleanEmps[adminIndex];
+        if (existing.empId !== 'admin' || existing.name !== 'admin' || existing.password !== 'callboxdavaoadmin') {
+          cleanEmps[adminIndex] = {
+            ...existing,
+            name: 'admin',
+            email: 'admin@callboxinc.com',
+            empId: 'admin',
+            password: 'callboxdavaoadmin',
+            role: 'Super Admin'
+          };
+          changed = true;
+        }
+      }
+      
       if (changed) {
         localStorage.setItem('cb_allEmployees_v2', JSON.stringify(cleanEmps));
       }
       return cleanEmps;
     } catch {
-      return [defaultAdmin];
+      return [defaultAdmin, restrictedAdmin];
     }
   });
   const [allLinks, setAllLinks] = useState<ResourceLink[]>(() => {
@@ -148,23 +217,55 @@ export default function App() {
       return mockAuditLogs;
     }
   });
-  const [notifications, setNotifications] = useState<SystemNotification[]>(() => {
+  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
+
+  // Simple Synthesizer audio beep helper for interactive user notifications and security responses
+  const playBeep = (freq = 800, duration = 0.15) => {
     try {
-      const saved = localStorage.getItem('cb_notifications_v2');
-      const loaded = saved ? JSON.parse(saved) : mockNotifications;
-      const seen = new Set();
-      return loaded.filter((n: any) => {
-        if (!n || !n.id) return false;
-        if (seen.has(n.id)) return false;
-        seen.add(n.id);
-        return true;
-      });
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
     } catch {
-      return mockNotifications;
+      // Audio context fallbacks
+    }
+  };
+
+  // State tracker for acknowledged critical announcement identifiers
+  const [acknowledgedCriticalIds, setAcknowledgedCriticalIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('cb_acknowledged_critical_ids_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('cb_acknowledged_critical_ids_v1', JSON.stringify(acknowledgedCriticalIds));
+  }, [acknowledgedCriticalIds]);
+
+  const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('cb_approvalRequests_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
     }
   });
 
   // Local Storage Synchronization Effects
+  useEffect(() => {
+    localStorage.setItem('cb_approvalRequests_v2', JSON.stringify(approvalRequests));
+  }, [approvalRequests]);
+
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('cb_currentUser_v2', JSON.stringify(currentUser));
@@ -193,23 +294,65 @@ export default function App() {
     localStorage.setItem('cb_auditLogs_v2', JSON.stringify(auditLogs));
   }, [auditLogs]);
 
+  // Synchronize user-scoped notifications
   useEffect(() => {
-    localStorage.setItem('cb_notifications_v2', JSON.stringify(notifications));
-  }, [notifications]);
-
-  // Personalized Favorite Bookmarks State
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('cb_favorites_v2');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
+    if (currentUser) {
+      const userKey = `cb_notifications_v2_${currentUser.id}`;
+      const saved = localStorage.getItem(userKey);
+      try {
+        const loaded = saved ? JSON.parse(saved) : mockNotifications;
+        const seen = new Set();
+        const cleaned = loaded.filter((n: any) => {
+          if (!n || !n.id) return false;
+          if (seen.has(n.id)) return false;
+          seen.add(n.id);
+          return true;
+        });
+        setNotifications(cleaned);
+      } catch {
+        setNotifications(mockNotifications);
+      }
+    } else {
+      setNotifications([]);
     }
-  });
+  }, [currentUser?.id]);
 
   useEffect(() => {
-    localStorage.setItem('cb_favorites_v2', JSON.stringify(favorites));
-  }, [favorites]);
+    if (currentUser) {
+      const userKey = `cb_notifications_v2_${currentUser.id}`;
+      localStorage.setItem(userKey, JSON.stringify(notifications));
+    }
+  }, [notifications, currentUser?.id]);
+
+  // Personalized Favorite Bookmarks State per User
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  // Synchronize user-scoped favorites (personalized toolbar)
+  useEffect(() => {
+    if (currentUser) {
+      const userKey = `cb_favorites_v2_${currentUser.id}`;
+      const saved = localStorage.getItem(userKey);
+      setFavorites(saved ? JSON.parse(saved) : []);
+    } else {
+      setFavorites([]);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (currentUser) {
+      const userKey = `cb_favorites_v2_${currentUser.id}`;
+      localStorage.setItem(userKey, JSON.stringify(favorites));
+    }
+  }, [favorites, currentUser?.id]);
+
+  // Hook to handle redirecting to the login screen after a page refresh
+  useEffect(() => {
+    const directToLogin = localStorage.getItem('cb_directToLogin');
+    if (directToLogin === 'true') {
+      localStorage.removeItem('cb_directToLogin');
+      setViewMode('login');
+    }
+  }, []);
 
   // Load initial data from Supabase if configured in Vercel or local env
   useEffect(() => {
@@ -225,6 +368,35 @@ export default function App() {
         } else {
           setSupabaseMode('error');
           setDbDiagnosticMsg('Credentials matched, tables missing in your database. Run supabase_schema.sql first.');
+        }
+
+        const remoteEmployees = await fetchRemoteEmployees();
+        if (remoteEmployees && remoteEmployees.length > 0) {
+          const hasAdmin = remoteEmployees.some(e => e.empId === 'admin' || e.id === 'emp-superadmin-restricted');
+          if (!hasAdmin) {
+            const oldSuperAdmin = remoteEmployees.find(e => e.empId === 'SuperAdmin');
+            if (oldSuperAdmin) {
+              await deleteRemoteEmployee(oldSuperAdmin.id);
+            }
+            if (isSupabaseConfigured) {
+              await upsertRemoteEmployee(restrictedAdmin);
+            }
+            setAllEmployees([...remoteEmployees.filter(e => e.empId !== 'SuperAdmin'), restrictedAdmin]);
+          } else {
+            const updatedEmployees = remoteEmployees.map(e => {
+              if (e.id === 'emp-superadmin-restricted' || e.empId === 'admin') {
+                return {
+                  ...e,
+                  name: 'admin',
+                  empId: 'admin',
+                  password: 'callboxdavaoadmin',
+                  role: 'Super Admin' as UserRole
+                };
+              }
+              return e;
+            });
+            setAllEmployees(updatedEmployees);
+          }
         }
 
         const remoteAudit = await fetchRemoteAuditLogs();
@@ -390,7 +562,7 @@ export default function App() {
       timestamp: `${today} ${new Date().toTimeString().slice(0, 5)}`,
       actor: currentUser?.name || 'System Operator',
       role: currentUser?.role || 'Employee',
-      action: 'Published Broadcast Alert',
+      action: item.isCritical ? 'DISPATCHED CRITICAL NODE BULLETIN' : 'Published Broadcast Alert',
       target: item.title,
       status: 'SUCCESS'
     };
@@ -399,7 +571,7 @@ export default function App() {
     // Append system notification alert immediately for other clients
     const newNotif: SystemNotification = {
       id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      title: 'New Broadcast alert',
+      title: item.isCritical ? '⚠️ CRITICAL BROADCAST ALERT' : 'New Broadcast alert',
       message: `${currentUser?.name} dispatched: "${item.title}"`,
       type: 'announcement',
       timestamp: 'Just now',
@@ -425,6 +597,17 @@ export default function App() {
       status: 'WARNING'
     };
     setAuditLogs(prev => [newLog, ...prev]);
+
+    // Append system notification alert immediately
+    const delNotif: SystemNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      title: 'Broadcast Notice Deleted',
+      message: `${currentUser?.name || 'Administrator'} archived the announcement: "${targetItem?.title || 'Unknown'}"`,
+      type: 'announcement',
+      timestamp: 'Just now',
+      isRead: false
+    };
+    setNotifications(prev => [delNotif, ...prev]);
   };
 
   // Upload/dispatch new resource doc (HR / Admin)
@@ -452,6 +635,17 @@ export default function App() {
       status: 'SUCCESS'
     };
     setAuditLogs(prev => [newLog, ...prev]);
+
+    // Append system notification alert immediately
+    const uploadNotif: SystemNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      title: 'New Resource Document Uploaded',
+      message: `${currentUser?.name || 'Authorized User'} uploaded SOP/document: "${item.title}" [${item.fileType.toUpperCase()}]`,
+      type: 'resource',
+      timestamp: 'Just now',
+      isRead: false
+    };
+    setNotifications(prev => [uploadNotif, ...prev]);
   };
 
   // Log resource download metric index inside layout counters
@@ -465,8 +659,76 @@ export default function App() {
     );
   };
 
+  // Delete/remove resource document
+  const handleRemoveDocument = (docId: string) => {
+    const targetDoc = allDocuments.find(d => d.id === docId);
+    setAllDocuments(prev => prev.filter(doc => doc.id !== docId));
+
+    if (targetDoc) {
+      // Audit logs entry
+      const today = new Date().toISOString().split('T')[0];
+      const newLog: AuditLog = {
+        id: `log-${Date.now()}`,
+        timestamp: `${today} ${new Date().toTimeString().slice(0, 5)}`,
+        actor: currentUser?.name || 'System Operator',
+        role: currentUser?.role || 'Employee',
+        action: 'Deleted Resource Document',
+        target: targetDoc.title,
+        status: 'SUCCESS'
+      };
+      setAuditLogs(prev => [newLog, ...prev]);
+
+      // Append system notification alert immediately
+      const delDocNotif: SystemNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        title: 'Resource Document Deleted',
+        message: `${currentUser?.name || 'Administrator'} deleted the SOP/document: "${targetDoc.title}"`,
+        type: 'resource',
+        timestamp: 'Just now',
+        isRead: false
+      };
+      setNotifications(prev => [delDocNotif, ...prev]);
+      setFeedbackToast(`"${targetDoc.title}" deleted from resource library.`);
+    }
+  };
+
   // Elevate specific employee role (Super Admin switches roles internally)
-  const handleUpdateEmployeeRole = (empId: string, newRole: UserRole, customPassword?: string) => {
+  const handleUpdateEmployeeRole = async (empId: string, newRole: UserRole, customPassword?: string) => {
+    const alteredEmp = allEmployees.find(e => e.id === empId);
+    if (!alteredEmp) return;
+
+    if (currentUser?.role === 'HR') {
+      const newRequest: ApprovalRequest = {
+        id: `req-${Date.now()}`,
+        type: 'change_role',
+        hrId: currentUser.id,
+        hrName: currentUser.name,
+        employeeId: empId,
+        employeeName: alteredEmp.name,
+        details: {
+          oldRole: alteredEmp.role,
+          newRole: newRole,
+          customPassword: customPassword
+        },
+        status: 'pending',
+        timestamp: new Date().toLocaleString()
+      };
+      setApprovalRequests(prev => [newRequest, ...prev]);
+
+      const newNotif: SystemNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        title: 'Authorization Update Requested',
+        message: `HR Manager "${currentUser.name}" requested role elevation of "${alteredEmp.name}" to [${newRole}].`,
+        type: 'hr',
+        timestamp: 'Just now',
+        isRead: false
+      };
+      setNotifications(prev => [newNotif, ...prev]);
+
+      setFeedbackToast("Approval requested: Sent authorization update to Super Admin.");
+      return;
+    }
+
     // Modify database list
     setAllEmployees(prev => 
       prev.map(emp => 
@@ -480,26 +742,15 @@ export default function App() {
       )
     );
 
-    const alteredEmp = allEmployees.find(e => e.id === empId);
-
-    // Auto login if assigned to Super Admin or HR!
-    if (alteredEmp && (newRole === 'Super Admin' || newRole === 'HR')) {
+    if (alteredEmp) {
       const updatedEmp: Employee = {
         ...alteredEmp,
         role: newRole,
         ...(customPassword !== undefined ? { password: customPassword } : {})
       };
-      setCurrentUser(updatedEmp);
-      setViewMode('workspace');
-      setActiveTab('links');
-      setFeedbackToast(`Auto-logged in as ${updatedEmp.name} (${newRole}) with the new passcode! 🔐`);
-    } else if (currentUser?.id === empId) {
-      // If we altered the currently logged-in user profile, propagate immediately
-      setCurrentUser(prev => prev ? { 
-        ...prev, 
-        role: newRole,
-        ...(customPassword !== undefined ? { password: customPassword } : {})
-      } : null);
+      if (isSupabaseConfigured) {
+        await upsertRemoteEmployee(updatedEmp);
+      }
     }
 
     // Logging RLS changes
@@ -511,19 +762,56 @@ export default function App() {
       actor: currentUser?.name || 'Administrator System',
       role: currentUser?.role || 'Super Admin',
       action: 'Elevated Directory Role',
-      target: `${alteredEmp?.name} to [${newRole}]`,
+      target: `${alteredEmp?.name || 'Unknown'} to [${newRole}]`,
       status: 'SUCCESS'
     };
     setAuditLogs(prev => [newLog, ...prev]);
+
+    // Append system notification for direct assignment
+    const assignNotif: SystemNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      title: 'Security Role Assigned',
+      message: `${currentUser?.name || 'Administrator'} updated the security role of "${alteredEmp?.name}" to [${newRole}].`,
+      type: 'hr',
+      timestamp: 'Just now',
+      isRead: false
+    };
+    setNotifications(prev => [assignNotif, ...prev]);
+
+    // After assignment, update active session if it's the currently logged-in user, show a confirmation toast without force-logging out other sessions
+    if (currentUser?.id === empId) {
+      setCurrentUser(prev => prev ? { 
+        ...prev, 
+        role: newRole,
+        ...(customPassword !== undefined ? { password: customPassword } : {})
+      } : null);
+      setFeedbackToast(`Roster updated! Your role clearance has been updated to [${newRole}].`);
+    } else {
+      setFeedbackToast(`Roster updated! "${alteredEmp?.name}" designation changed to [${newRole}] successfully. Registry refreshed.`);
+    }
   };
 
   // Add a brand new employee user to the database
   const handleAddEmployee = (newEmp: Omit<Employee, 'id'>) => {
+    // Avoid registration of duplicate email, corporate ID, or name
+    const hasDuplicate = allEmployees.some(emp => 
+      emp.email.trim().toLowerCase() === newEmp.email.trim().toLowerCase() ||
+      emp.name.trim().toLowerCase() === newEmp.name.trim().toLowerCase() ||
+      emp.empId.trim().toLowerCase() === newEmp.empId.trim().toLowerCase()
+    );
+    if (hasDuplicate) {
+      console.warn(`Duplicate employee registration blocked for ${newEmp.name} (${newEmp.email})`);
+      return;
+    }
+
     const id = `emp-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
     const employee: Employee = {
       ...newEmp,
       id
     };
+    if (isSupabaseConfigured) {
+      upsertRemoteEmployee(employee);
+    }
     setAllEmployees(prev => {
       const updated = [...prev, employee];
       // Push notification broadcast
@@ -557,8 +845,57 @@ export default function App() {
     const targetEmp = allEmployees.find(e => e.id === empId);
     if (!targetEmp) return;
 
+    // Prevent deletion of the fixed admin accounts or any root Super Admin to lock stability
+    if (targetEmp.empId === 'admin' || targetEmp.id === 'emp-superadmin-restricted' || targetEmp.name === 'admin') {
+      setFeedbackToast("Operation Denied: The primary Super Admin account ('admin') is fixed and cannot be deleted.");
+      return;
+    }
+
+    if (currentUser?.role === 'HR') {
+      const newRequest: ApprovalRequest = {
+        id: `req-${Date.now()}`,
+        type: 'delete_account',
+        hrId: currentUser.id,
+        hrName: currentUser.name,
+        employeeId: empId,
+        employeeName: targetEmp.name,
+        details: {},
+        status: 'pending',
+        timestamp: new Date().toLocaleString()
+      };
+      setApprovalRequests(prev => [newRequest, ...prev]);
+
+      const newNotif: SystemNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        title: 'Directory Deletion Requested',
+        message: `HR Manager "${currentUser.name}" requested deletion of employee profile: "${targetEmp.name}".`,
+        type: 'hr',
+        timestamp: 'Just now',
+        isRead: false
+      };
+      setNotifications(prev => [newNotif, ...prev]);
+
+      setFeedbackToast("Approval requested: Sent profile deletion request to Super Admin.");
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      deleteRemoteEmployee(empId);
+    }
+
     // Remove from employee list
     setAllEmployees(prev => prev.filter(e => e.id !== empId));
+
+    // Append system notification for direct employee deletion
+    const deleteNotif: SystemNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      title: 'Employee Profile Deleted',
+      message: `${currentUser?.name || 'Administrator'} deleted the employee profile of "${targetEmp.name}".`,
+      type: 'hr',
+      timestamp: 'Just now',
+      isRead: false
+    };
+    setNotifications(prev => [deleteNotif, ...prev]);
 
     // Audit logs entry
     const today = new Date().toISOString().split('T')[0];
@@ -580,8 +917,156 @@ export default function App() {
     }
   };
 
+  const handleAcceptApprovalRequest = async (requestId: string) => {
+    const req = approvalRequests.find(r => r.id === requestId);
+    if (!req) return;
+
+    if (req.type === 'change_role') {
+      const empId = req.employeeId;
+      const newRole = req.details.newRole!;
+      const customPassword = req.details.customPassword;
+
+      setAllEmployees(prev => 
+        prev.map(emp => 
+          emp.id === empId 
+            ? { 
+                ...emp, 
+                role: newRole, 
+                ...(customPassword !== undefined ? { password: customPassword } : {})
+              }
+            : emp
+        )
+      );
+
+      const alteredEmp = allEmployees.find(e => e.id === empId);
+      if (alteredEmp) {
+        const updatedEmp: Employee = {
+          ...alteredEmp,
+          role: newRole,
+          ...(customPassword !== undefined ? { password: customPassword } : {})
+        };
+        if (isSupabaseConfigured) {
+          await upsertRemoteEmployee(updatedEmp);
+        }
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const newLog: AuditLog = {
+        id: `log-${Date.now()}`,
+        timestamp: `${today} ${new Date().toTimeString().slice(0, 5)}`,
+        actor: currentUser?.name || 'Administrator System',
+        role: currentUser?.role || 'Super Admin',
+        action: 'Elevated Directory Role (Approved HR Request)',
+        target: `${req.employeeName} to [${newRole}]`,
+        status: 'SUCCESS'
+      };
+      setAuditLogs(prev => [newLog, ...prev]);
+
+      // If we altered the currently logged-in user profile, propagate immediately
+      if (currentUser?.id === empId) {
+        setCurrentUser(prev => prev ? { 
+          ...prev, 
+          role: newRole,
+          ...(customPassword !== undefined ? { password: customPassword } : {})
+        } : null);
+      }
+    } else if (req.type === 'delete_account') {
+      const empId = req.employeeId;
+      const targetEmp = allEmployees.find(e => e.id === empId);
+      if (targetEmp) {
+        if (isSupabaseConfigured) {
+          await deleteRemoteEmployee(empId);
+        }
+
+        setAllEmployees(prev => prev.filter(e => e.id !== empId));
+
+        const today = new Date().toISOString().split('T')[0];
+        const newLog: AuditLog = {
+          id: `log-${Date.now()}`,
+          timestamp: `${today} ${new Date().toTimeString().slice(0, 5)}`,
+          actor: currentUser?.name || 'Administrator System',
+          role: currentUser?.role || 'Super Admin',
+          action: 'Decompiled Employee Record (Approved HR Request)',
+          target: `${req.employeeName} [ID: ${targetEmp.empId}]`,
+          status: 'WARNING'
+        };
+        setAuditLogs(prev => [newLog, ...prev]);
+
+        // If the Admin deleted themselves, log them out gracefully
+        if (currentUser?.id === empId) {
+          setCurrentUser(null);
+          setViewMode('login');
+        }
+      }
+    }
+
+    setApprovalRequests(prev => 
+      prev.map(r => r.id === requestId ? { ...r, status: 'accepted' as const } : r)
+    );
+    setFeedbackToast("Operation approved and executed successfully!");
+
+    // Append approved request notification
+    const approveNotif: SystemNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      title: 'Approval Request Approved',
+      message: `Super Admin approved the ${req.type === 'change_role' ? 'role designation update' : 'account deletion'} request for "${req.employeeName}".`,
+      type: 'hr',
+      timestamp: 'Just now',
+      isRead: false
+    };
+    setNotifications(prev => [approveNotif, ...prev]);
+  };
+
+  const handleDenyApprovalRequest = (requestId: string) => {
+    const req = approvalRequests.find(r => r.id === requestId);
+    setApprovalRequests(prev => 
+      prev.map(r => r.id === requestId ? { ...r, status: 'denied' as const } : r)
+    );
+    setFeedbackToast("Operation request denied.");
+
+    if (req) {
+      const denyNotif: SystemNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        title: 'Approval Request Denied/Rejected',
+        message: `Super Admin rejected the ${req.type === 'change_role' ? 'role designation update' : 'account deletion'} request for "${req.employeeName}".`,
+        type: 'hr',
+        timestamp: 'Just now',
+        isRead: false
+      };
+      setNotifications(prev => [denyNotif, ...prev]);
+    }
+  };
+
+  const handleDeleteApprovalRequest = (requestId: string) => {
+    const req = approvalRequests.find(r => r.id === requestId);
+    setApprovalRequests(prev => prev.filter(r => r.id !== requestId));
+    setFeedbackToast("Approval record removed from logs view.");
+
+    if (req) {
+      const delReqNotif: SystemNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        title: 'Approval Request Profile Dismissed',
+        message: `Approval request registry for "${req.employeeName}" removed from ledger by "${currentUser?.name}".`,
+        type: 'hr',
+        timestamp: 'Just now',
+        isRead: false
+      };
+      setNotifications(prev => [delReqNotif, ...prev]);
+    }
+  };
+
   // Add system utilities from link editor (Admin / HR)
   const handleAddLink = (item: Omit<ResourceLink, 'id' | 'clickCount'>) => {
+    // Avoid double creation of similar URLs or titles to optimize DB/state footprints
+    const hasDuplicate = allLinks.some(link => 
+      link.title.trim().toLowerCase() === item.title.trim().toLowerCase() ||
+      link.url.trim().toLowerCase().replace(/\/+$/, '') === item.url.trim().toLowerCase().replace(/\/+$/, '')
+    );
+    if (hasDuplicate) {
+      console.warn(`Duplicate link integration blocked for "${item.title}"`);
+      return;
+    }
+
     const newId = `link-${allLinks.length + 1}`;
     const newLink: ResourceLink = {
       ...item,
@@ -644,6 +1129,17 @@ export default function App() {
       });
     }
 
+    // Append system notification alert immediately
+    const delLinkNotif: SystemNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      title: 'Resource Link Removed',
+      message: `"${matchingLink?.title || 'Legacy resources'}" was removed from the general index list by "${currentUser?.name}".`,
+      type: 'announcement',
+      timestamp: 'Just now',
+      isRead: false
+    };
+    setNotifications(prev => [delLinkNotif, ...prev]);
+
     // Logging removal
     const today = new Date().toISOString().split('T')[0];
     const newLog: AuditLog = {
@@ -675,6 +1171,20 @@ export default function App() {
     gender?: 'Male' | 'Female'
   ) => {
     if (!currentUser) return;
+    
+    if (isSupabaseConfigured) {
+      const updatedUser: Employee = {
+        ...currentUser,
+        phone,
+        email,
+        avatarUrl,
+        name,
+        position,
+        department,
+        gender
+      };
+      upsertRemoteEmployee(updatedUser);
+    }
     
     // Propagate profile state globally
     setCurrentUser(prev => prev ? { ...prev, phone, email, avatarUrl, name, position, department, gender } : null);
@@ -729,6 +1239,9 @@ export default function App() {
       setAllEmployees(prev => {
         const hasUser = prev.some(emp => emp.id === user.id || emp.email.toLowerCase() === user.email.toLowerCase());
         if (!hasUser) {
+          if (isSupabaseConfigured) {
+            upsertRemoteEmployee(user);
+          }
           return [...prev, user];
         }
         return prev;
@@ -746,6 +1259,11 @@ export default function App() {
   const linksClicksTotal = allLinks.reduce((sum, link) => sum + link.clickCount, 0);
   const documentsDownloadTotal = allDocuments.reduce((sum, doc) => sum + doc.downloadCount, 0);
   const unreadNotifCount = notifications.filter(n => !n.isRead).length;
+
+  // Check if active user has any pending unacknowledged critical physical node update
+  const activeCriticalAnnouncement = (currentUser && currentUser.role !== 'Inactive') 
+    ? allAnnouncements.find(ann => ann.isCritical && !acknowledgedCriticalIds.includes(ann.id))
+    : undefined;
 
   return (
     <div className="min-h-screen bg-brand-dark overflow-x-hidden text-brand-light font-sans selection:bg-brand-primary/20 relative">
@@ -1024,6 +1542,9 @@ export default function App() {
               <nav className="flex gap-1.5 border-b border-white/10 pb-2.5 overflow-x-auto scrollbar-none whitespace-nowrap -mx-3 px-3 sm:mx-0 sm:px-0" id="portal-tab-dock">
                 {[
                   { id: 'links', label: 'Systems Hub', roleReq: ['Employee', 'HR', 'Super Admin'] },
+                  { id: 'bulletins', label: 'Bulletin Board', roleReq: ['Employee', 'HR', 'Super Admin'] },
+                  { id: 'resources', label: 'SOP & Documents', roleReq: ['Employee', 'HR', 'Super Admin'] },
+                  { id: 'analytics', label: 'Branch Analytics', roleReq: ['Employee', 'HR', 'Super Admin'] },
                   { id: 'admin', label: 'Governance Panel', roleReq: ['Super Admin', 'HR'] },
                   { id: 'profile', label: 'My Profile', roleReq: ['Employee', 'HR', 'Super Admin'] },
                 ].map((tab) => {
@@ -1044,7 +1565,14 @@ export default function App() {
                           : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
                       }`}
                     >
-                      {tab.label}
+                      <span className="flex items-center gap-1.5">
+                        {tab.label}
+                        {tab.id === 'admin' && currentUser.role === 'Super Admin' && approvalRequests.filter(r => r.status === 'pending').length > 0 && (
+                          <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-rose-500 text-white font-mono font-bold leading-none animate-pulse">
+                            {approvalRequests.filter(r => r.status === 'pending').length}
+                          </span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}
@@ -1085,7 +1613,7 @@ export default function App() {
                     currentUser.role === 'Inactive' 
                       ? allLinks.filter(l => l.isForInactive) 
                       : currentUser.role === 'Employee'
-                        ? allLinks.filter(l => l.postedByRole === 'Super Admin')
+                        ? allLinks.filter(l => l.postedByRole === 'Super Admin' || l.postedByRole === 'HR')
                         : allLinks
                   } 
                   onIncrementClick={handleIncrementLinkCount} 
@@ -1093,6 +1621,36 @@ export default function App() {
                   onToggleFavorite={handleToggleFavorite}
                   userRole={currentUser.role}
                   employeeName={currentUser.name}
+                  currentUserId={currentUser.id}
+                />
+              )}
+
+              {activeTab === 'bulletins' && (
+                <Announcements
+                  announcements={allAnnouncements}
+                  onAddAnnouncement={handleAddAnnouncement}
+                  onRemoveAnnouncement={handleRemoveAnnouncement}
+                  userRole={currentUser.role}
+                  employeeName={currentUser.name}
+                />
+              )}
+
+              {activeTab === 'resources' && (
+                <ResourceLibrary
+                  documents={allDocuments}
+                  onDownloadDoc={handleDownloadDoc}
+                  onAddDocument={handleAddDocument}
+                  onDeleteDocument={handleRemoveDocument}
+                  userRole={currentUser.role}
+                  employeeName={currentUser.name}
+                />
+              )}
+
+              {activeTab === 'analytics' && (
+                <AnalyticsDashboard
+                  auditLogs={auditLogs}
+                  linksClicksTotal={linksClicksTotal}
+                  documentsDownloadTotal={documentsDownloadTotal}
                 />
               )}
 
@@ -1107,6 +1665,10 @@ export default function App() {
                   onRemoveLink={handleRemoveLink}
                   currentUserRole={currentUser.role}
                   currentUserId={currentUser.id}
+                  approvalRequests={approvalRequests}
+                  onAcceptApprovalRequest={handleAcceptApprovalRequest}
+                  onDenyApprovalRequest={handleDenyApprovalRequest}
+                  onDeleteApprovalRequest={handleDeleteApprovalRequest}
                 />
               )}
 
@@ -1181,21 +1743,47 @@ export default function App() {
                       </div>
                     </div>
 
-                    <ul className="space-y-4 font-sans text-xs max-h-[380px] overflow-y-auto pr-1">
-                      {notifications.map((notif, idx) => (
-                        <li key={`${notif.id}-${idx}`} className="p-3.5 rounded-xl border border-white/5 bg-brand-dark/50 relative overflow-hidden group">
-                          {/* Circle style alerts */}
-                          <div className="flex items-start gap-2.5">
-                            <span className="h-2 w-2 rounded-full bg-brand-primary mt-1.5 shrink-0" />
-                            <div>
-                              <p className="font-semibold text-white">{notif.title}</p>
-                              <p className="text-gray-400 mt-0.5">{notif.message}</p>
-                              <span className="text-[10px] text-gray-500 font-mono mt-1 block">{notif.timestamp}</span>
+                    {notifications.length === 0 ? (
+                      <div className="py-12 text-center text-gray-500 font-mono text-xs border border-dashed border-white/5 rounded-2xl bg-brand-dark/20 flex flex-col items-center justify-center gap-2 select-none">
+                        <Bell className="h-6 w-6 text-gray-600 animate-pulse" />
+                        <span>No Broadcast Records Active</span>
+                      </div>
+                    ) : (
+                      <ul className="space-y-3.5 font-sans text-xs max-h-[380px] overflow-y-auto pr-1">
+                        {notifications.map((notif, idx) => (
+                          <li 
+                            key={`${notif.id}-${idx}`} 
+                            className={`p-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden group/item ${
+                              notif.isRead 
+                                ? 'bg-brand-dark/30 border-white/5 opacity-60' 
+                                : 'bg-brand-dark/70 border-brand-primary/10 hover:border-brand-primary/25'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              {/* Circle style alerts */}
+                              <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 transition-colors duration-300 ${notif.isRead ? 'bg-white/10' : 'bg-brand-primary'}`} />
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-white truncate">{notif.title}</p>
+                                  <p className="text-gray-400 mt-0.5 whitespace-normal break-words leading-relaxed">{notif.message}</p>
+                                  <span className="text-[10px] text-gray-500 font-mono mt-1.5 block">{notif.timestamp}</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                                }}
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 text-gray-500 transition-all cursor-pointer shrink-0 opacity-0 group-hover/item:opacity-100 focus:opacity-100"
+                                title="Dismiss notification"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
 
                   <button
@@ -1222,6 +1810,105 @@ export default function App() {
 
       {/* 4. Global Interactive Core Sitemaps & Diagrams Drawer */}
       <SitemapOverlay isOpen={isSitemapOpen} onClose={() => setIsSitemapOpen(false)} />
+
+      {/* 5. MANDATORY CRITICAL BROADCAST ACKNOWLEDGEMENT OVERLAY */}
+      <AnimatePresence>
+        {activeCriticalAnnouncement && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 min-h-screen"
+            id="critical-acknowledgement-overlay"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="max-w-xl w-full border-2 border-rose-500/30 bg-brand-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Critical Alert Ribbon */}
+              <div className="bg-rose-500/10 border-b border-rose-500/20 px-6 py-4 flex items-center gap-3 shrink-0">
+                <span className="flex h-3.5 w-3.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
+                </span>
+                <div className="flex-1">
+                  <p className="text-[10px] text-rose-400 font-mono font-bold tracking-widest uppercase">Node Compliance Directive</p>
+                  <h4 className="text-sm font-semibold text-white tracking-snug">CRITICAL SYSTEM BROADCAST EXECUTED</h4>
+                </div>
+                <div className="px-2.5 py-1 rounded bg-rose-500/20 text-[9px] font-mono font-bold text-rose-300 border border-rose-500/30 uppercase tracking-wider">
+                  MANDATORY READING
+                </div>
+              </div>
+
+              {/* Scrollable Document Details Content */}
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-5 flex-1">
+                <div>
+                  <span className="text-[10px] font-mono font-bold py-0.5 px-2.5 rounded bg-brand-primary/10 border border-brand-primary/25 text-brand-primary uppercase">
+                    {activeCriticalAnnouncement.category}
+                  </span>
+                  
+                  <h3 className="text-xl sm:text-2xl font-display font-extrabold text-white mt-3 tracking-snug leading-tight border-b border-white/5 pb-3">
+                    {activeCriticalAnnouncement.title}
+                  </h3>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono text-gray-400 bg-brand-dark/40 py-2 px-3 rounded-lg border border-white/5">
+                  <div>
+                    <span className="text-gray-500">ISSUED BY:</span> <strong className="text-white font-medium">{activeCriticalAnnouncement.publishedBy}</strong>
+                  </div>
+                  <div className="hidden sm:block text-gray-600">|</div>
+                  <div>
+                    <span className="text-gray-500">TIMESTAMP:</span> <strong className="text-white font-medium">{activeCriticalAnnouncement.publishedDate}</strong>
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-300 space-y-4 max-h-[250px] overflow-y-auto bg-brand-dark/40 border border-white/5 p-4 rounded-xl font-mono text-xs leading-relaxed whitespace-pre-wrap selection:bg-rose-500/20">
+                  {activeCriticalAnnouncement.content}
+                </div>
+
+                <div className="rounded-xl border border-rose-500/10 bg-rose-500/5 p-4 text-xs font-mono text-gray-400 leading-relaxed">
+                  <span className="text-rose-400 font-bold block mb-1">⚠️ ACKNOWLEDGEMENT COMPLIANCE CONTRACT</span>
+                  By clicking the confirmation action below, you declare that you have fully received, read, and registered this operational physical node directive. This action is authenticated and recorded in the permanent security ledger.
+                </div>
+              </div>
+
+              {/* Action Banner */}
+              <div className="bg-brand-dark/40 border-t border-white/5 p-6 flex justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Play confirmation auditory feedback beeps
+                    playBeep(520, 0.1);
+                    setTimeout(() => playBeep(780, 0.15), 60);
+
+                    // Update acknowledged list
+                    setAcknowledgedCriticalIds(prev => [...prev, activeCriticalAnnouncement.id]);
+
+                    // Append audit log compliance indexing
+                    const today = new Date().toISOString().split('T')[0];
+                    const newLog: AuditLog = {
+                      id: `log-${Date.now()}`,
+                      timestamp: `${today} ${new Date().toTimeString().slice(0, 5)}`,
+                      actor: currentUser?.name || 'Unknown Employee',
+                      role: currentUser?.role || 'Employee',
+                      action: 'ACKNOWLEDGED CRITICAL NODE BULLETIN',
+                      target: activeCriticalAnnouncement.title,
+                      status: 'SUCCESS'
+                    };
+                    setAuditLogs(prev => [newLog, ...prev]);
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 bg-rose-500 hover:bg-rose-600 text-brand-dark hover:shadow-lg hover:shadow-rose-500/20 font-bold font-mono text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer border-none"
+                >
+                  <CheckCircle className="h-4 w-4" /> Heard & Understood
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

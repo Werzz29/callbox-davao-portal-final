@@ -258,24 +258,10 @@ export default function LoginScreen({ onLoginSuccess, employees, onBackToLanding
       if (lookupUser) {
         onLoginSuccess(lookupUser);
       } else {
-        // Automatically register standard employee dynamically to prevent errors/redlines and provide a seamless login experience!
-        const cleanName = input.includes('@') ? input.split('@')[0] : input;
-        const generatedName = cleanName.replaceAll(/[._-]/g, ' ').split(/\s+/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || 'OJT Trainee';
-        
-        const autoEmployee: Employee = {
-          id: `emp-${Date.now()}`,
-          name: generatedName,
-          email: input.includes('@') ? input : `${input}@callboxinc.com`,
-          position: 'Operations Executive',
-          department: 'Operations',
-          role: 'Employee',
-          avatarUrl: '', // auto-badge
-          phone: '+63 920 777 8888',
-          empId: `CB-2026-${Math.floor(100 + Math.random() * 900)}`,
-          joinedDate: new Date().toISOString().split('T')[0],
-          gender: 'Male'
-        };
-        onLoginSuccess(autoEmployee);
+        // Only registered employee accounts are allowed to enter
+        setErrorMessage('Access Denied: Your email or username is not registered in the system roster. Only accounts pre-configured by an Admin or HR can access this portal.');
+        setIsAuthorizing(false);
+        return;
       }
       setIsAuthorizing(false);
     }, 1200);
@@ -438,7 +424,29 @@ export default function LoginScreen({ onLoginSuccess, employees, onBackToLanding
                       <span>No password needed for employees</span>
                     </div>
 
-
+                    {/* Dynamic Auto-suggestions of matching employees under typing */}
+                    {matches.length > 0 && (
+                      <div className="mt-3 p-2.5 bg-[#111827]/60 border border-brand-primary/10 rounded-xl space-y-1.5 animate-fade-in text-[10px]">
+                        <p className="text-gray-500 font-mono uppercase tracking-wider text-[9px]">Matched Active Profiles:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {matches.map(emp => (
+                            <button
+                              key={emp.id}
+                              type="button"
+                              onClick={() => {
+                                playBeep(1100, 0.08);
+                                setUsernameOrEmail(emp.email);
+                                setSelectedEmployee(emp);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/25 text-brand-primary hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <span className="w-1 h-1 rounded-full bg-brand-primary animate-pulse"></span>
+                              <span>{emp.name} ({emp.email.split('@')[0]})</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <button

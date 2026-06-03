@@ -37,6 +37,7 @@ export default function Announcements({
   const [formSummary, setFormSummary] = useState('');
   const [formContent, setFormContent] = useState('');
   const [formIsPinned, setFormIsPinned] = useState(false);
+  const [formIsCritical, setFormIsCritical] = useState(false);
   const [publishedSuccess, setPublishedSuccess] = useState(false);
 
   const categories = ['All', 'Company Wide', 'HR Notice', 'Operations', 'Training', 'Upcoming Event', 'IT Support'];
@@ -62,7 +63,8 @@ export default function Announcements({
       summary: formSummary,
       content: formContent,
       publishedBy: employeeName,
-      isPinned: formIsPinned
+      isPinned: formIsPinned,
+      isCritical: formIsCritical
     });
 
     setPublishedSuccess(true);
@@ -74,6 +76,7 @@ export default function Announcements({
       setFormSummary('');
       setFormContent('');
       setFormIsPinned(false);
+      setFormIsCritical(false);
     }, 1500);
   };
 
@@ -411,6 +414,23 @@ export default function Announcements({
                     />
                     <label htmlFor="formIsPinned" className="text-gray-300 font-medium font-mono text-[11px] cursor-pointer selection:bg-brand-primary/20">
                       Pin to Top (Priority alert header)
+                    </label>
+                  </div>
+
+                  {/* Critical Urgent overlay toggle */}
+                  <div className="flex items-center gap-2 py-1 border-t border-white/5 pt-3 mt-1">
+                    <input
+                      type="checkbox"
+                      id="formIsCritical"
+                      checked={formIsCritical}
+                      onChange={(e) => setFormIsCritical(e.target.checked)}
+                      className="accent-rose-500 h-4.5 w-4.5 cursor-pointer rounded"
+                      title="Is critical flag"
+                    />
+                    <label htmlFor="formIsCritical" className="text-gray-300 font-medium font-mono text-[11px] cursor-pointer selection:bg-brand-primary/20 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                      <span className="text-rose-400 font-bold">Mark as Critical Update</span> 
+                      <span className="text-gray-500">(Forces user confirmation overlay)</span>
                     </label>
                   </div>
 
