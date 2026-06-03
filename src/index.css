@@ -111,5 +111,28 @@
   scrollbar-width: none;
 }
 
+/* Custom styled scrollbars for specific horizontal navigation on mobile */
+@media (max-width: 639px) {
+  #portal-tab-dock,
+  #smart-link-hub-module > div:nth-child(2) {
+    scrollbar-width: thin !important;
+    -ms-overflow-style: auto !important;
+  }
+  #portal-tab-dock::-webkit-scrollbar,
+  #smart-link-hub-module > div:nth-child(2)::-webkit-scrollbar {
+    display: block !important;
+    height: 4px !important;
+  }
+  #portal-tab-dock::-webkit-scrollbar-thumb,
+  #smart-link-hub-module > div:nth-child(2)::-webkit-scrollbar-thumb {
+    background: rgba(255, 199, 44, 0.45) !important;
+    border-radius: 99px !important;
+  }
+  #portal-tab-dock::-webkit-scrollbar-track,
+  #smart-link-hub-module > div:nth-child(2)::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+}
+
 
 
