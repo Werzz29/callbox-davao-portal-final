@@ -122,6 +122,8 @@ export default function AdminPanel({
   const [empRole, setEmpRole] = useState<UserRole>('Employee');
   const [empAvatar, setEmpAvatar] = useState('');
   const [empGender, setEmpGender] = useState<'Male' | 'Female'>('Male');
+  const [empPasscode, setEmpPasscode] = useState('');
+  const [showEmpPasscode, setShowEmpPasscode] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -548,13 +550,15 @@ export default function AdminPanel({
       avatarUrl: empAvatar || '',
       phone: '+63 917 555 ' + Math.floor(1000 + Math.random() * 9000),
       joinedDate: today,
-      gender: empGender
+      gender: empGender,
+      password: empPasscode.trim() || 'callbox2026'
     });
 
     setSuccessMsg('New employee added securely to global rosters!');
     setEmpName('');
     setEmpMailPrefix('');
     setEmpAvatar('');
+    setEmpPasscode('');
     setEmpCorpId(`CB-DVO-${Math.floor(100 + Math.random() * 900)}`);
     setTimeout(() => setSuccessMsg(''), 3000);
   };
@@ -631,7 +635,10 @@ export default function AdminPanel({
               avatarUrl: '',
               phone: '+63 917 555 ' + Math.floor(1000 + Math.random() * 9000),
               joinedDate: new Date().toISOString().split('T')[0],
-              gender: 'Male' as const
+              gender: 'Male' as const,
+              password: 'callbox2026',
+              isCSV: true,
+              isPasscodeSetupComplete: false
             };
 
             onAddEmployee(newEmp);
@@ -796,6 +803,7 @@ export default function AdminPanel({
               <th>Schedule Group</th>
               <th>Designation/Team</th>
               <th>Auth Class</th>
+              <th>Passcode</th>
             </tr>
           </thead>
           <tbody>
@@ -807,6 +815,7 @@ export default function AdminPanel({
                 <td>${emp.department}</td>
                 <td>${emp.position}</td>
                 <td>${emp.role}</td>
+                <td><code>${emp.password || '—'}</code>${emp.isPasscodeSetupComplete === false ? ' (PENDING)' : ''}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -943,11 +952,12 @@ export default function AdminPanel({
             <thead>
               <tr>
                 <th style="width: 10%"># Sequence ID</th>
-                <th style="width: 25%">Full Legal Name</th>
-                <th style="width: 25%">Authorized Email</th>
+                <th style="width: 20%">Full Legal Name</th>
+                <th style="width: 20%">Authorized Email</th>
                 <th style="width: 15%">Shift Group</th>
                 <th style="width: 15%">Operational Team</th>
                 <th style="width: 10%">Security Clearance</th>
+                <th style="width: 10%">Passcode</th>
               </tr>
             </thead>
             <tbody>
@@ -959,6 +969,7 @@ export default function AdminPanel({
                   <td>${emp.department} Schedule</td>
                   <td>${emp.position}</td>
                   <td><strong>${emp.role.toUpperCase()}</strong></td>
+                  <td><code>${emp.password || '—'}</code>${emp.isPasscodeSetupComplete === false ? ' (PENDING)' : ''}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1193,6 +1204,36 @@ export default function AdminPanel({
                   <p className="text-[9px] text-gray-500 font-mono mt-1">Domain restricted to official corporate @callboxinc.com addresses.</p>
                 </div>
 
+                {/* SECURED PASSCODE ASSIGNMENT */}
+                <div>
+                  <label className="block text-gray-400 font-medium mb-1.5 font-mono uppercase tracking-wider text-[10px]">Assign Login Passcode</label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+                    <input
+                      type={showEmpPasscode ? 'text' : 'password'}
+                      required
+                      placeholder="Set active employee passcode"
+                      value={empPasscode}
+                      onChange={(e) => setEmpPasscode(e.target.value)}
+                      className="w-full bg-brand-dark border border-white/10 rounded-lg pl-9 pr-9 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary font-mono text-xs"
+                      title="Secured employee login passcode"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEmpPasscode(!showEmpPasscode)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors cursor-pointer"
+                      title={showEmpPasscode ? 'Hide passcode' : 'Show passcode'}
+                    >
+                      {showEmpPasscode ? (
+                        <span className="text-[10px] font-mono px-1">HIDE</span>
+                      ) : (
+                        <span className="text-[10px] font-mono px-1">SHOW</span>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-gray-500 font-mono mt-1">If left blank, defaults to <strong className="text-brand-primary">callbox2026</strong>. Can be custom defined here.</p>
+                </div>
+
                 {/* REGISTER BUTTON */}
                 <button
                   type="submit"
@@ -1280,7 +1321,7 @@ export default function AdminPanel({
           </div>
 
           {/* ACTIVE ROSTER DIRECTORY GRID */}
-          <div className="lg:col-span-8 glass-panel rounded-3xl p-6 flex flex-col justify-between">
+          <div className="lg:col-span-8 glass-panel rounded-3xl p-6 flex flex-col justify-between" id="active-roster-directory-grid">
             <div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 <div>
@@ -1348,7 +1389,7 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              <div className="overflow-auto max-h-[500px] pr-1">
+              <div className="overflow-auto max-h-[500px] pr-1" id="active-roster-table-container">
                 {sortedEmployees.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 font-mono text-xs border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-2">
                     <Search className="h-5 w-5 text-gray-600 animate-pulse" />
@@ -1362,6 +1403,7 @@ export default function AdminPanel({
                         <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Shift</th>
                         <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Team</th>
                         <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Scope</th>
+                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Passcode</th>
                         <th className="py-2.5 text-right sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Authorize Level</th>
                       </tr>
                     </thead>
@@ -1402,6 +1444,18 @@ export default function AdminPanel({
                           }`}>
                             {emp.role}
                           </span>
+                        </td>
+                        <td className="py-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono bg-white/5 border border-white/5 px-2 py-0.5 rounded text-[10px] text-brand-primary font-bold tracking-wide">
+                              {emp.password || '—'}
+                            </span>
+                            {emp.isPasscodeSetupComplete === false && (
+                              <span className="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1 py-0.5 rounded font-mono font-bold animate-pulse" title="Needs Custom Passcode configuration on login">
+                                SETUP PENDING
+                              </span>
+                            )}
+                          </div>
                         </td>
                         {/* Select tool to change roles */}
                         <td className="py-3 text-right">
@@ -2004,9 +2058,11 @@ export default function AdminPanel({
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold tracking-wider ${
                             req.type === 'change_role' 
                               ? 'bg-brand-primary/10 text-brand-primary border border-brand-primary/20' 
-                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              : req.type === 'reset_passcode'
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                           }`}>
-                            {req.type === 'change_role' ? 'Role Elevation' : 'Profile Deletion'}
+                            {req.type === 'change_role' ? 'Role Elevation' : req.type === 'reset_passcode' ? 'Passcode Reset' : 'Profile Deletion'}
                           </span>
 
                           <span className="text-xs text-gray-400 font-mono">{req.timestamp}</span>
@@ -2018,6 +2074,10 @@ export default function AdminPanel({
                             <span>
                               Requested to change authorization level for <strong className="text-white font-semibold">{req.employeeName}</strong> to role <span className="text-brand-accent font-mono font-bold uppercase">[{req.details.newRole}]</span>.
                             </span>
+                          ) : req.type === 'reset_passcode' ? (
+                            <span>
+                              Requested to reset the login passcode for <strong className="text-white font-semibold">{req.employeeName}</strong>. Accept to authorize their proposed custom passcode.
+                            </span>
                           ) : (
                             <span>
                               Requested to irreversibly decompile employee account of <strong className="text-rose-400 font-semibold">{req.employeeName}</strong> from active rosters.
@@ -2028,7 +2088,7 @@ export default function AdminPanel({
                         {/* Metadata sender info */}
                         <div className="flex items-center gap-2 pt-1 text-xs text-gray-400 font-mono">
                           <User className="h-3.5 w-3.5 text-gray-500" />
-                          <span>Submitted by HR Desk:</span>
+                          <span>Submitted by:</span>
                           <span className="text-yellow-400 font-semibold">{req.hrName}</span>
                         </div>
                       </div>

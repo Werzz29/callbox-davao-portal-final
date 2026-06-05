@@ -26,7 +26,8 @@ const defaultAdmin: Employee = {
   phone: '+63 917 123 4567',
   empId: 'CB-2021-001F',
   joinedDate: '2021-04-12',
-  gender: 'Female'
+  gender: 'Female',
+  password: 'callbox2026'
 };
 
 const restrictedAdmin: Employee = {
@@ -55,7 +56,8 @@ const defaultEmployee1: Employee = {
   phone: '+63 920 111 2222',
   empId: 'CB-2023-014F',
   joinedDate: '2023-11-04',
-  gender: 'Female'
+  gender: 'Female',
+  password: 'callbox2026'
 };
 
 const defaultEmployee2: Employee = {
@@ -69,7 +71,8 @@ const defaultEmployee2: Employee = {
   phone: '+63 918 333 4444',
   empId: 'CB-2024-023M',
   joinedDate: '2024-02-18',
-  gender: 'Male'
+  gender: 'Male',
+  password: 'callbox2026'
 };
 
 // Supabase Integration Services
@@ -116,9 +119,30 @@ export default function App() {
   );
 
   // Navigation Flow State
-  const [viewMode, setViewMode] = useState<'landing' | 'login' | 'workspace'>('landing');
+  const [viewMode, setViewMode] = useState<'landing' | 'login' | 'workspace'>(() => {
+    try {
+      const savedUser = localStorage.getItem('cb_currentUser_v2');
+      const hasUser = savedUser ? JSON.parse(savedUser) : null;
+      if (!hasUser) {
+        const savedView = localStorage.getItem('cb_viewMode_v2');
+        if (savedView === 'login') return 'login';
+        return 'landing';
+      }
+      const savedView = localStorage.getItem('cb_viewMode_v2');
+      return (savedView as 'landing' | 'login' | 'workspace') || 'workspace';
+    } catch {
+      return 'landing';
+    }
+  });
   const [isSitemapOpen, setIsSitemapOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'links' | 'bulletins' | 'resources' | 'profile' | 'analytics' | 'admin'>('links');
+  const [activeTab, setActiveTab] = useState<'links' | 'bulletins' | 'resources' | 'profile' | 'analytics' | 'admin'>(() => {
+    try {
+      const saved = localStorage.getItem('cb_activeTab_v2');
+      return (saved as 'links' | 'bulletins' | 'resources' | 'profile' | 'analytics' | 'admin') || 'links';
+    } catch {
+      return 'links';
+    }
+  });
   
   // Authenticated Profile State
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
@@ -139,13 +163,18 @@ export default function App() {
       const seenIds = new Set<string>();
       let changed = false;
       const cleanEmps = emps.map((emp, index) => {
+        const password = emp.password || 'callbox2026';
         if (!emp.id || seenIds.has(emp.id)) {
           const uniqueId = `emp-${Date.now()}-${index}-${Math.floor(100000 + Math.random() * 900000)}`;
           seenIds.add(uniqueId);
           changed = true;
-          return { ...emp, id: uniqueId };
+          return { ...emp, id: uniqueId, password };
         }
         seenIds.add(emp.id);
+        if (emp.password !== password) {
+          changed = true;
+          return { ...emp, password };
+        }
         return emp;
       });
       
@@ -262,6 +291,14 @@ export default function App() {
   });
 
   // Local Storage Synchronization Effects
+  useEffect(() => {
+    localStorage.setItem('cb_viewMode_v2', viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem('cb_activeTab_v2', activeTab);
+  }, [activeTab]);
+
   useEffect(() => {
     localStorage.setItem('cb_approvalRequests_v2', JSON.stringify(approvalRequests));
   }, [approvalRequests]);
@@ -381,7 +418,7 @@ export default function App() {
             if (isSupabaseConfigured) {
               await upsertRemoteEmployee(restrictedAdmin);
             }
-            setAllEmployees([...remoteEmployees.filter(e => e.empId !== 'SuperAdmin'), restrictedAdmin]);
+            setAllEmployees([...remoteEmployees.filter(e => e.empId !== 'SuperAdmin').map(e => ({ ...e, password: e.password || 'callbox2026' })), restrictedAdmin]);
           } else {
             const updatedEmployees = remoteEmployees.map(e => {
               if (e.id === 'emp-superadmin-restricted' || e.empId === 'admin') {
@@ -393,7 +430,7 @@ export default function App() {
                   role: 'Super Admin' as UserRole
                 };
               }
-              return e;
+              return { ...e, password: e.password || 'callbox2026' };
             });
             setAllEmployees(updatedEmployees);
           }
@@ -692,6 +729,37 @@ export default function App() {
     }
   };
 
+  // Update employee password during first-time login
+  const handleSetEmployeePassword = (empId: string, passcode: string) => {
+    const alteredEmp = allEmployees.find(e => e.id === empId);
+    if (alteredEmp) {
+      const updated = { ...alteredEmp, password: passcode, isPasscodeSetupComplete: true };
+      if (isSupabaseConfigured) {
+        upsertRemoteEmployee(updated);
+      }
+    }
+    setAllEmployees(prev => prev.map(emp => emp.id === empId ? { ...emp, password: passcode, isPasscodeSetupComplete: true } : emp));
+  };
+
+  // Submit password reset request to the Super Admin's queue
+  const handleRequestPasscodeReset = (empId: string, empName: string, requestedPasscode: string) => {
+    const newRequest: ApprovalRequest = {
+      id: `req-${Date.now()}`,
+      type: 'reset_passcode',
+      hrId: 'self-service',
+      hrName: 'Self-Service Request',
+      employeeId: empId,
+      employeeName: empName,
+      details: {
+        customPassword: requestedPasscode
+      },
+      status: 'pending',
+      timestamp: new Date().toLocaleString()
+    };
+    setApprovalRequests(prev => [newRequest, ...prev]);
+    setFeedbackToast("Request Sent: Submitted passcode reset request to Super Admin.");
+  };
+
   // Elevate specific employee role (Super Admin switches roles internally)
   const handleUpdateEmployeeRole = async (empId: string, newRole: UserRole, customPassword?: string) => {
     const alteredEmp = allEmployees.find(e => e.id === empId);
@@ -807,6 +875,7 @@ export default function App() {
     const id = `emp-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
     const employee: Employee = {
       ...newEmp,
+      password: (newEmp as any).password || 'callbox2026',
       id
     };
     if (isSupabaseConfigured) {
@@ -997,6 +1066,54 @@ export default function App() {
           setCurrentUser(null);
           setViewMode('login');
         }
+      }
+    } else if (req.type === 'reset_passcode') {
+      const empId = req.employeeId;
+      const customPassword = 'callbox2026';
+
+      setAllEmployees(prev => 
+        prev.map(emp => 
+          emp.id === empId 
+            ? { 
+                ...emp, 
+                password: customPassword,
+                isPasscodeSetupComplete: false
+              }
+            : emp
+        )
+      );
+
+      const alteredEmp = allEmployees.find(e => e.id === empId);
+      if (alteredEmp) {
+        const updatedEmp: Employee = {
+          ...alteredEmp,
+          password: customPassword,
+          isPasscodeSetupComplete: false
+        };
+        if (isSupabaseConfigured) {
+          await upsertRemoteEmployee(updatedEmp);
+        }
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const newLog: AuditLog = {
+        id: `log-${Date.now()}`,
+        timestamp: `${today} ${new Date().toTimeString().slice(0, 5)}`,
+        actor: currentUser?.name || 'Administrator System',
+        role: currentUser?.role || 'Super Admin',
+        action: 'Authorized Passcode Reset (Approved)',
+        target: `${req.employeeName}`,
+        status: 'SUCCESS'
+      };
+      setAuditLogs(prev => [newLog, ...prev]);
+
+      // If we altered currently logged-in user password, update them
+      if (currentUser?.id === empId) {
+        setCurrentUser(prev => prev ? { 
+          ...prev, 
+          password: customPassword,
+          isPasscodeSetupComplete: false
+        } : null);
       }
     }
 
@@ -1288,6 +1405,8 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess} 
           employees={allEmployees} 
           onBackToLanding={() => setViewMode('landing')} 
+          onSetEmployeePassword={handleSetEmployeePassword}
+          onRequestPasscodeReset={handleRequestPasscodeReset}
         />
       )}
 
@@ -1296,7 +1415,7 @@ export default function App() {
         <div className="flex flex-col min-h-screen relative">
           
           {/* Header Dashboard section */}
-          <header className="sticky top-0 z-40 bg-[#111827]/85 backdrop-blur-xl border-b border-white/10 shadow-lg">
+          <header className="fixed top-0 left-0 right-0 z-40 bg-[#111827]/85 backdrop-blur-xl border-b border-white/10 shadow-lg">
             <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex flex-wrap sm:flex-nowrap gap-3 items-center justify-between">
               
               {/* Branch Logo brandings */}
@@ -1397,6 +1516,9 @@ export default function App() {
 
             </div>
           </header>
+
+          {/* Header spacer to prevent layout overlap under fixed header */}
+          <div className="h-[120px] sm:h-[84px] w-full shrink-0" />
 
           {/* Core Shell bodies */}
           <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8 space-y-4 sm:space-y-6">
@@ -1559,10 +1681,10 @@ export default function App() {
                         setActiveTab(tab.id as any);
                         recordVisitEvent(`Visited [${tab.label}]`);
                       }}
-                      className={`px-3.5 sm:px-4 py-2.5 sm:py-3.5 min-h-[44px] flex items-center justify-center rounded-xl font-display text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer ${
+                      className={`px-3.5 sm:px-4 py-2.5 sm:py-3.5 min-h-[44px] flex items-center justify-center rounded-xl font-display text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-300 cursor-pointer ${
                         activeTab === tab.id 
-                          ? 'bg-brand-primary/10 text-brand-primary border border-brand-primary/20 font-bold' 
-                          : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                          ? 'bg-brand-primary/15 text-brand-primary border border-brand-primary/35 font-bold gold-glow shadow-[0_0_20px_-3px_rgba(255,199,44,0.45)]' 
+                          : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5'
                       }`}
                     >
                       <span className="flex items-center gap-1.5">

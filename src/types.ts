@@ -18,6 +18,8 @@ export interface Employee {
   joinedDate: string;
   gender?: 'Male' | 'Female';
   password?: string;
+  isCSV?: boolean;
+  isPasscodeSetupComplete?: boolean;
 }
 
 export interface ResourceLink {
@@ -87,7 +89,7 @@ export interface PortalActivity {
 
 export interface ApprovalRequest {
   id: string;
-  type: 'change_role' | 'delete_account';
+  type: 'change_role' | 'delete_account' | 'reset_passcode';
   hrId: string;
   hrName: string;
   employeeId: string;
