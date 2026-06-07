@@ -182,7 +182,9 @@ export async function fetchRemoteEmployees(): Promise<Employee[] | null> {
         empId: item.emp_id,
         joinedDate: item.joined_date,
         gender: item.gender,
-        password: item.password || ''
+        password: item.password || '',
+        isCSV: item.is_csv !== undefined ? item.is_csv : true,
+        isPasscodeSetupComplete: item.is_passcode_setup_complete !== undefined ? item.is_passcode_setup_complete : true
       })) as Employee[];
     }
   } catch (err) {
@@ -194,6 +196,9 @@ export async function fetchRemoteEmployees(): Promise<Employee[] | null> {
 export async function upsertRemoteEmployee(employee: Employee): Promise<boolean> {
   if (!supabase) return false;
   try {
+    const rawPass = employee.password || 'callbox2026';
+    const maskedPassword = /^\*+$/.test(rawPass) ? rawPass : '*'.repeat(rawPass.length);
+
     const dbRow = {
       id: employee.id,
       name: employee.name,
@@ -206,7 +211,9 @@ export async function upsertRemoteEmployee(employee: Employee): Promise<boolean>
       emp_id: employee.empId,
       joined_date: employee.joinedDate,
       gender: employee.gender,
-      password: employee.password || ''
+      password: maskedPassword,
+      is_csv: employee.isCSV !== undefined ? employee.isCSV : true,
+      is_passcode_setup_complete: employee.isPasscodeSetupComplete !== undefined ? employee.isPasscodeSetupComplete : true
     };
 
     const { error } = await supabase
@@ -214,8 +221,33 @@ export async function upsertRemoteEmployee(employee: Employee): Promise<boolean>
       .upsert(dbRow, { onConflict: 'id' });
 
     if (error) {
-      console.error('Supabase write error (employees):', error.message);
-      return false;
+      console.warn('Supabase write error (employees), retrying without is_csv or is_passcode_setup_complete fields:', error.message);
+      
+      // Fallback: retry without the new columns if the schema in Supabase has not been migrated yet
+      const fallbackRow = {
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        position: employee.position,
+        department: employee.department,
+        role: employee.role,
+        avatar_url: employee.avatarUrl || '',
+        phone: employee.phone || '',
+        emp_id: employee.empId,
+        joined_date: employee.joinedDate,
+        gender: employee.gender,
+        password: maskedPassword
+      };
+
+      const { error: retryError } = await supabase
+        .from('employees')
+        .upsert(fallbackRow, { onConflict: 'id' });
+
+      if (retryError) {
+        console.error('Supabase write retry error (employees) - absolute failure:', retryError.message);
+        return false;
+      }
+      return true;
     }
     return true;
   } catch (err) {

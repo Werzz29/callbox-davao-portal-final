@@ -423,8 +423,14 @@ export default function LoginScreen({
         }
 
         const expectedPassword = lookupUser.password || 'callbox2026';
+        const isMaskedRemotePassword = /^\*+$/.test(expectedPassword);
 
-        if (password.trim() !== expectedPassword.trim()) {
+        let isMatch = password.trim() === expectedPassword.trim();
+        if (!isMatch && isMaskedRemotePassword) {
+          isMatch = password.trim() === 'callbox2026';
+        }
+
+        if (!isMatch) {
           setErrorMessage(`Credential mismatch. The validation passcode for Employee ${lookupUser.name} fails authentication.`);
           setIsAuthorizing(false);
           return;

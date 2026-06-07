@@ -409,6 +409,14 @@ export default function App() {
 
         const remoteEmployees = await fetchRemoteEmployees();
         if (remoteEmployees && remoteEmployees.length > 0) {
+          let localEmps: Employee[] = [];
+          try {
+            const saved = localStorage.getItem('cb_allEmployees_v2');
+            if (saved) localEmps = JSON.parse(saved);
+          } catch (e) {
+            console.error('Failed to parse local employees state', e);
+          }
+
           const hasAdmin = remoteEmployees.some(e => e.empId === 'admin' || e.id === 'emp-superadmin-restricted');
           if (!hasAdmin) {
             const oldSuperAdmin = remoteEmployees.find(e => e.empId === 'SuperAdmin');
@@ -418,7 +426,19 @@ export default function App() {
             if (isSupabaseConfigured) {
               await upsertRemoteEmployee(restrictedAdmin);
             }
-            setAllEmployees([...remoteEmployees.filter(e => e.empId !== 'SuperAdmin').map(e => ({ ...e, password: e.password || 'callbox2026' })), restrictedAdmin]);
+
+            const processedRemote = remoteEmployees
+              .filter(e => e.empId !== 'SuperAdmin')
+              .map(e => {
+                const localMatch = localEmps.find(le => le.id === e.id);
+                let checkPass = e.password || 'callbox2026';
+                if (/^\*+$/.test(checkPass) && localMatch && localMatch.password && !/^\*+$/.test(localMatch.password)) {
+                  checkPass = localMatch.password;
+                }
+                return { ...e, password: checkPass };
+              });
+
+            setAllEmployees([...processedRemote, restrictedAdmin]);
           } else {
             const updatedEmployees = remoteEmployees.map(e => {
               if (e.id === 'emp-superadmin-restricted' || e.empId === 'admin') {
@@ -430,7 +450,12 @@ export default function App() {
                   role: 'Super Admin' as UserRole
                 };
               }
-              return { ...e, password: e.password || 'callbox2026' };
+              const localMatch = localEmps.find(le => le.id === e.id);
+              let checkPass = e.password || 'callbox2026';
+              if (/^\*+$/.test(checkPass) && localMatch && localMatch.password && !/^\*+$/.test(localMatch.password)) {
+                checkPass = localMatch.password;
+              }
+              return { ...e, password: checkPass };
             });
             setAllEmployees(updatedEmployees);
           }

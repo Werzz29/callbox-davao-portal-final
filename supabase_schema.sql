@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS public.employees (
     joined_date text NOT NULL,
     gender text, -- 'Male', 'Female'
     password text,
+    is_csv boolean DEFAULT true,
+    is_passcode_setup_complete boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
