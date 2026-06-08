@@ -155,6 +155,42 @@ export async function fetchRemoteAuditLogs(): Promise<AuditLog[] | null> {
   }
 }
 
+export function encodePassword(password: string): string {
+  if (!password) return '';
+  if (/^\*+$/.test(password)) {
+    return password;
+  }
+  if (password.startsWith('***') && password.endsWith('***')) {
+    return password;
+  }
+  try {
+    const bytes = new TextEncoder().encode(password);
+    const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+    const encoded = btoa(binString);
+    return `***${encoded}***`;
+  } catch (e) {
+    return `***${password}***`;
+  }
+}
+
+export function decodePassword(masked: string): string {
+  if (!masked) return '';
+  if (/^\*+$/.test(masked)) {
+    return 'callbox2026'; // fallback for legacy literal asterisk-masked rows
+  }
+  if (masked.startsWith('***') && masked.endsWith('***') && masked.length > 6) {
+    try {
+      const encoded = masked.slice(3, -3);
+      const binString = atob(encoded);
+      const bytes = Uint8Array.from(binString, (char) => char.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    } catch (e) {
+      return masked.slice(3, -3);
+    }
+  }
+  return masked;
+}
+
 export async function fetchRemoteEmployees(): Promise<Employee[] | null> {
   if (!supabase) return null;
   try {
@@ -182,7 +218,7 @@ export async function fetchRemoteEmployees(): Promise<Employee[] | null> {
         empId: item.emp_id,
         joinedDate: item.joined_date,
         gender: item.gender,
-        password: item.password || '',
+        password: decodePassword(item.password || ''),
         isCSV: item.is_csv !== undefined ? item.is_csv : true,
         isPasscodeSetupComplete: item.is_passcode_setup_complete !== undefined ? item.is_passcode_setup_complete : true
       })) as Employee[];
@@ -197,7 +233,7 @@ export async function upsertRemoteEmployee(employee: Employee): Promise<boolean>
   if (!supabase) return false;
   try {
     const rawPass = employee.password || 'callbox2026';
-    const maskedPassword = /^\*+$/.test(rawPass) ? rawPass : '*'.repeat(rawPass.length);
+    const maskedPassword = encodePassword(rawPass);
 
     const dbRow = {
       id: employee.id,
