@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Mail, AlertCircle, Fingerprint, Sparkles, UserCheck, KeyRound, User, ArrowLeft, Eye, EyeOff, Search, ShieldCheck, CheckCircle2, RefreshCw
 } from 'lucide-react';
@@ -478,15 +478,18 @@ export default function LoginScreen({
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-brand-accent/15 rounded-full blur-[160px] pointer-events-none" />
 
       {onBackToLanding && (
-        <button
+        <motion.button
           onClick={onBackToLanding}
+          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 450, damping: 20 }}
           className="fixed top-6 left-4 sm:left-8 z-30 flex items-center gap-2 text-[11px] font-mono text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-3.5 py-2 rounded-xl border border-white/5 hover:border-white/15 transition-all duration-300 cursor-pointer shadow-md group"
           title="Back to Landing Page"
           id="login-back-to-landing-btn"
         >
           <ArrowLeft className="h-3.5 w-3.5 text-brand-primary group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Home</span>
-        </button>
+        </motion.button>
       )}
 
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl relative z-10">
@@ -506,7 +509,11 @@ export default function LoginScreen({
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl relative z-10">
-        <div className="glass-panel rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6 border border-white/5">
+        <motion.div 
+          layout="position"
+          transition={{ type: "spring", stiffness: 380, damping: 30 }}
+          className="glass-panel rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6 border border-white/5"
+        >
           
           {setupPasscodeUser ? (
             <div className="space-y-6 animate-fade-in p-2">
@@ -583,21 +590,25 @@ export default function LoginScreen({
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
-                  <button
+                  <motion.button
                     type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       setSetupPasscodeUser(null);
                       setNewPasscode('');
                       setConfirmPasscode('');
                       setErrorMessage('');
                     }}
-                    className="py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl transition-all cursor-pointer border border-white/5"
+                    className="py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl transition-all cursor-pointer border border-white/5 animate-fade-in"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     type="submit"
                     disabled={isAuthorizing}
+                    whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
+                    whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
                     className="py-2.5 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer font-extrabold"
                   >
                     {isAuthorizing ? (
@@ -605,7 +616,7 @@ export default function LoginScreen({
                     ) : (
                       'Save & Log In'
                     )}
-                  </button>
+                  </motion.button>
                 </div>
               </form>
             </div>
@@ -623,25 +634,38 @@ export default function LoginScreen({
               { key: 'Admin', label: 'Admin Access', sub: 'Systems Governance' },
               { key: 'Inactive', label: 'Inactive View', sub: 'Limited Links sandbox' }
             ].map(opt => (
-              <button
+              <motion.button
                 key={opt.key}
                 type="button"
                 onClick={() => setSelectedProfile(opt.key as any)}
-                className={`p-3.5 rounded-2xl text-left border relative transition-all duration-300 cursor-pointer ${
+                whileTap={{ scale: 0.96 }}
+                whileHover={{ scale: 1.015 }}
+                transition={{ type: "spring", stiffness: 450, damping: 24 }}
+                className={`p-3.5 rounded-2xl text-left border relative cursor-pointer overflow-hidden transition-colors duration-300 ${
                   selectedProfile === opt.key 
-                    ? 'bg-brand-primary/10 border-brand-primary gold-glow scale-[1.02]' 
+                    ? 'border-brand-primary/60 shadow-[0_0_12px_rgba(255,215,0,0.06)]' 
                     : 'bg-white/5 hover:bg-white/10 border-white/5'
                 }`}
                 title={`Switch to ${opt.label}`}
               >
-                <div className="flex items-center justify-between mb-1">
+                {selectedProfile === opt.key && (
+                  <motion.div
+                    layoutId="activeTabGlow"
+                    className="absolute inset-0 bg-brand-primary/10 z-0"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <div className="relative z-10 flex items-center justify-between mb-1">
                   <span className="text-xs font-bold text-white uppercase font-display">{opt.label}</span>
                   {selectedProfile === opt.key && (
-                    <span className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" />
+                    <motion.span 
+                      layoutId="activeTabDot"
+                      className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" 
+                    />
                   )}
                 </div>
-                <p className="text-[10px] text-gray-400 font-sans leading-snug">{opt.sub}</p>
-              </button>
+                <p className="relative z-10 text-[10px] text-gray-400 font-sans leading-snug">{opt.sub}</p>
+              </motion.button>
             ))}
           </div>
 
@@ -728,8 +752,10 @@ export default function LoginScreen({
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 pt-2 w-full">
-                          <button
+                          <motion.button
                             type="button"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.95 }}
                             onClick={() => {
                               setIsResettingPasscode(false);
                               setResetError('');
@@ -740,10 +766,12 @@ export default function LoginScreen({
                             className="py-3 bg-white/5 hover:bg-white/10 text-gray-300 font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl transition-all cursor-pointer border border-white/5"
                           >
                             Cancel
-                          </button>
-                          <button
+                          </motion.button>
+                          <motion.button
                             type="submit"
                             disabled={isAuthorizing}
+                            whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
+                            whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
                             className="py-3 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer"
                           >
                             {isAuthorizing ? (
@@ -751,7 +779,7 @@ export default function LoginScreen({
                             ) : (
                               'Send Request'
                             )}
-                          </button>
+                          </motion.button>
                         </div>
                       </>
                     )}
@@ -802,8 +830,10 @@ export default function LoginScreen({
                         <p className="text-[9px] text-gray-400 font-sans leading-relaxed">
                           You do not need to log in via the Employee Portal. Please use the secure administrative panel instead.
                         </p>
-                        <button
+                        <motion.button
                           type="button"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.95 }}
                           onClick={() => {
                             setSelectedProfile('Admin');
                             setSelectedEmployee(matchedPromotedUser);
@@ -812,7 +842,7 @@ export default function LoginScreen({
                           className="w-full py-2 bg-brand-primary hover:bg-brand-secondary text-brand-dark font-mono font-bold uppercase tracking-wider text-[9px] rounded-xl transition-all cursor-pointer border-none"
                         >
                           Switch to Admin Access
-                        </button>
+                        </motion.button>
                       </motion.div>
                     )}
 
@@ -840,8 +870,9 @@ export default function LoginScreen({
                               className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
                               title="Employee password field"
                             />
-                            <button
+                            <motion.button
                               type="button"
+                              whileTap={{ scale: 0.9 }}
                               onClick={() => setShowPassword(!showPassword)}
                               className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white transition-colors cursor-pointer mr-1"
                               title={showPassword ? 'Hide password' : 'Show password'}
@@ -851,7 +882,7 @@ export default function LoginScreen({
                               ) : (
                                 <Eye className="h-3.5 w-3.5" />
                               )}
-                            </button>
+                            </motion.button>
                           </div>
                           <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-500 font-mono">
                             <span>Secure validation enabled</span>
@@ -860,8 +891,10 @@ export default function LoginScreen({
                           
                           {/* Forgot Passcode Button Trigger */}
                           <div className="mt-2 text-right">
-                            <button
+                            <motion.button
                               type="button"
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.95 }}
                               onClick={() => {
                                 setIsResettingPasscode(true);
                                 setResetError('');
@@ -873,15 +906,16 @@ export default function LoginScreen({
                               title="Recover forgotten passcode"
                             >
                               Forgot Passcode?
-                            </button>
+                            </motion.button>
                           </div>
                         </div>
                       </motion.div>
                     ) : null}
 
-                    <button
+                    <motion.button
                       type="submit"
                       disabled={isAuthorizing || !matchedEmployeeForPasscode}
+                      whileTap={(!isAuthorizing && matchedEmployeeForPasscode) ? { scale: 0.97 } : undefined}
                       className="w-full py-3.5 bg-brand-primary hover:bg-brand-secondary disabled:bg-white/5 disabled:hover:bg-white/5 disabled:text-gray-500 text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all outline-none border-none cursor-pointer mt-2"
                     >
                       {isAuthorizing ? (
@@ -894,7 +928,7 @@ export default function LoginScreen({
                       ) : (
                         'Access Portal as Employee'
                       )}
-                    </button>
+                    </motion.button>
                   </form>
                 )}
 
@@ -912,9 +946,11 @@ export default function LoginScreen({
                       const isSelected = selectedEmployee?.id === emp.id || 
                                          (!selectedEmployee && emp.role === 'Super Admin' && usernameOrEmail === '');
                       return (
-                        <button
+                        <motion.button
                           key={emp.id}
                           type="button"
+                          whileHover={{ scale: 1.015 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => {
                             playBeep(1100, 0.08);
                             setSelectedEmployee(emp);
@@ -960,7 +996,7 @@ export default function LoginScreen({
                               {emp.role}
                             </span>
                           </div>
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
@@ -989,8 +1025,9 @@ export default function LoginScreen({
                         className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
                         title="Administrative Password"
                       />
-                      <button
+                      <motion.button
                         type="button"
+                        whileTap={{ scale: 0.9 }}
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white transition-colors cursor-pointer mr-1"
                         title={showPassword ? 'Hide password' : 'Show password'}
@@ -1000,13 +1037,15 @@ export default function LoginScreen({
                         ) : (
                           <Eye className="h-3.5 w-3.5" />
                         )}
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
 
-                  <button
+                  <motion.button
                     type="submit"
                     disabled={isAuthorizing}
+                    whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
+                    whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
                     className="w-full py-3.5 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 border-none cursor-pointer mt-2"
                   >
                     {isAuthorizing ? (
@@ -1017,7 +1056,7 @@ export default function LoginScreen({
                     ) : (
                       'Verify Clearance Passcode'
                     )}
-                  </button>
+                  </motion.button>
                 </form>
 
               </div>
@@ -1033,10 +1072,12 @@ export default function LoginScreen({
                   </p>
                 </div>
                 
-                <button
+                <motion.button
                   type="button"
                   onClick={() => handleLoginSubmit()}
                   disabled={isAuthorizing}
+                  whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
+                  whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
                   className="w-full max-w-sm py-3.5 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 border-none cursor-pointer mt-2"
                 >
                   {isAuthorizing ? (
@@ -1047,7 +1088,7 @@ export default function LoginScreen({
                   ) : (
                     'Access Portal as Inactive Guest'
                   )}
-                </button>
+                </motion.button>
               </div>
             )}
 
@@ -1068,7 +1109,7 @@ export default function LoginScreen({
           </>
           )}
 
-        </div>
+        </motion.div>
       </div>
 
       <div className="mt-8 text-center text-[10px] font-mono text-gray-600">

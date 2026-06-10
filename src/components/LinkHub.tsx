@@ -254,9 +254,11 @@ export default function LinkHub({
       {/* Categories Toolbar */}
       <div className="flex gap-2 pb-2.5 overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
         {categories.map((cat) => (
-          <button
+          <motion.button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 450, damping: 20 }}
             className={`px-3.5 sm:px-4 py-2.5 sm:py-3 min-h-[44px] flex items-center justify-center rounded-xl text-xs font-semibold tracking-wide uppercase whitespace-nowrap transition-all duration-200 cursor-pointer ${
               selectedCategory === cat 
                 ? 'bg-brand-primary text-brand-dark font-bold' 
@@ -264,7 +266,7 @@ export default function LinkHub({
             }`}
           >
             {cat}
-          </button>
+          </motion.button>
         ))}
       </div>
 
@@ -284,9 +286,11 @@ export default function LinkHub({
               </div>
               
               <div className="flex bg-black/40 rounded-xl p-0.5 border border-white/5 font-mono text-[9px] relative align-middle self-center font-bold">
-                <button
+                <motion.button
                   type="button"
                   onClick={() => setViewLayout('marquee')}
+                  whileTap={{ scale: 0.94 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 20 }}
                   className={`px-3 py-1 rounded-lg cursor-pointer transition-all duration-200 font-semibold flex items-center gap-1 ${
                     viewLayout === 'marquee' 
                       ? 'bg-brand-primary text-brand-dark shadow-lg shadow-brand-primary/15' 
@@ -294,11 +298,13 @@ export default function LinkHub({
                   }`}
                 >
                   Slides
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   type="button"
                   id="view-all-links-btn"
                   onClick={() => setViewLayout('grid')}
+                  whileTap={{ scale: 0.94 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 20 }}
                   className={`px-3 py-1 rounded-lg cursor-pointer transition-all duration-200 font-semibold flex items-center gap-1 ${
                     viewLayout === 'grid' 
                       ? 'bg-brand-primary text-brand-dark shadow-lg shadow-brand-primary/15'
@@ -306,7 +312,7 @@ export default function LinkHub({
                   }`}
                 >
                   View All ({filteredLinks.length})
-                </button>
+                </motion.button>
               </div>
             </div>
             
