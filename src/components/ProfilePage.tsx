@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
-  User, Mail, CheckCircle, Clock, Users, Camera, Trash2, AlertCircle, Link
+  User, Mail, CheckCircle, Clock, Users, Camera, Trash2, AlertCircle, Link, Phone, Lock, Key, RefreshCw
 } from 'lucide-react';
 import { Employee, PortalActivity } from '../types';
 import DefaultAvatar from './DefaultAvatar';
@@ -24,6 +24,7 @@ interface ProfilePageProps {
   ) => void;
   favoritesCount: number;
   employees?: Employee[];
+  onRequestPasswordReset?: (empId: string, empName: string, requestedPasscode: string) => void;
 }
 
 const getInitials = (fullName: string) => {
@@ -37,7 +38,8 @@ export default function ProfilePage({
   currentUser, 
   onUpdateContactInfo,
   favoritesCount,
-  employees = []
+  employees = [],
+  onRequestPasswordReset
 }: ProfilePageProps) {
   // Input fields state
   const [name, setName] = useState(currentUser.name);
@@ -63,6 +65,10 @@ export default function ProfilePage({
   const [contactSuccess, setContactSuccess] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [desiredPassword, setDesiredPassword] = useState('');
+  const [resetRequestSuccess, setResetRequestSuccess] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [isPosDropdownOpen, setIsPosDropdownOpen] = useState(false);
 
   // File loading capabilities
   const handleFileChange = (file: File) => {
@@ -314,69 +320,189 @@ export default function ProfilePage({
               <div>
                 <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Full Professional Name</label>
                 <div className="relative">
-                  <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <User className={`absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors duration-200 ${focusedField === 'name' ? 'text-brand-primary' : 'text-gray-500'}`} />
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-brand-dark border border-white/10 rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none focus:border-brand-primary font-mono text-xs"
+                    onFocus={() => setFocusedField('name')}
+                    onBlur={() => setFocusedField(null)}
+                    className="w-full bg-brand-dark border border-white/10 focus:border-brand-primary rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none font-mono text-xs transition-all duration-200 focus:ring-1 focus:ring-brand-primary/20"
                     placeholder="Enter full name"
                     title="Employee name"
                   />
                 </div>
+                {focusedField === 'name' && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] text-brand-primary font-mono mt-1 flex justify-between items-center px-1"
+                  >
+                    <span>✎ Official identifier on records</span>
+                    <span>{name.length}/50 chars</span>
+                  </motion.p>
+                )}
               </div>
 
               <div>
                 <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Corporate Mail Endpoint</label>
                 <div className="relative">
-                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <Mail className={`absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors duration-200 ${focusedField === 'email' ? 'text-brand-primary' : 'text-gray-500'}`} />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-brand-dark border border-white/10 rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none focus:border-brand-primary font-mono text-xs"
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => setFocusedField(null)}
+                    className="w-full bg-brand-dark border border-white/10 focus:border-brand-primary rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none font-mono text-xs transition-all duration-200 focus:ring-1 focus:ring-brand-primary/20"
                     title="Email input"
                   />
+                </div>
+                {focusedField === 'email' && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] text-brand-primary font-mono mt-1 flex justify-between items-center px-1"
+                  >
+                    <span>✎ Secure node correspondences</span>
+                    <span className={email.toLowerCase().endsWith('@callboxinc.com') ? "text-emerald-400" : "text-yellow-400"}>
+                      {email.toLowerCase().endsWith('@callboxinc.com') ? "✓ Verified @callboxinc.com" : "⚠️ Must end with callboxinc.com"}
+                    </span>
+                  </motion.p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Contact Mobile Number</label>
+                <div className="relative">
+                  <Phone className={`absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors duration-200 ${focusedField === 'phone' ? 'text-brand-primary' : 'text-gray-500'}`} />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    onFocus={() => setFocusedField('phone')}
+                    onBlur={() => setFocusedField(null)}
+                    className="w-full bg-brand-dark border border-white/10 focus:border-brand-primary rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none font-mono text-xs transition-all duration-200 focus:ring-1 focus:ring-brand-primary/20"
+                    placeholder="Enter contact number"
+                    title="Mobile phone number"
+                  />
+                </div>
+                {focusedField === 'phone' && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] text-brand-primary font-mono mt-1 flex justify-between items-center px-1"
+                  >
+                    <span>✎ Philippine GSM number identifier</span>
+                    <span>Format: +63 9XX XXX XXXX</span>
+                  </motion.p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Gender Identity</label>
+                <div className="relative">
+                  <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value as 'Male' | 'Female')}
+                    className="w-full bg-brand-dark border border-white/10 rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none focus:border-brand-primary appearance-none cursor-pointer"
+                    title="Gender selection"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Team Designation</label>
+                <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Team Designation / Position</label>
                 <div className="relative">
-                  <Users className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                  <select
+                  <Users className={`absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors duration-200 ${focusedField === 'position' ? 'text-brand-primary' : 'text-gray-500'}`} />
+                  <input
+                    type="text"
                     value={position}
-                    onChange={(e) => setPosition(e.target.value)}
-                    className="w-full bg-brand-dark border border-white/10 rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none focus:border-brand-primary appearance-none cursor-pointer"
-                    title="Team selection"
-                  >
-                    {[
-                      'Dvo CS APAC _DB Support',
-                      'Team Targaryen',
-                      'House Arryn',
-                      'IT',
-                      'Admin GS',
-                      'Admin Finance',
-                      'Dvo CS APAC ETC',
-                      'Dracarys',
-                      'Gnarly',
-                      'Sparta/Gnarly',
-                      'PM',
-                      'Demigods',
-                      'Demigods/Artemis',
-                      'CSM',
-                      'CSM/OM',
-                      'QA',
-                      '(Paradigm)',
-                      'Dvo CS-NorthAM Support',
-                      'OJT'
-                    ].map(teamOpt => (
-                      <option key={teamOpt} value={teamOpt}>{teamOpt}</option>
-                    ))}
-                  </select>
+                    onChange={(e) => {
+                      setPosition(e.target.value);
+                      setIsPosDropdownOpen(true);
+                    }}
+                    onFocus={() => {
+                      setFocusedField('position');
+                      setIsPosDropdownOpen(true);
+                    }}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      setTimeout(() => setIsPosDropdownOpen(false), 200);
+                    }}
+                    className="w-full bg-brand-dark border border-white/10 focus:border-brand-primary rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none font-mono text-xs transition-all duration-200 focus:ring-1 focus:ring-brand-primary/20"
+                    placeholder="Enter or select Position"
+                    title="Employee position"
+                    autoComplete="off"
+                  />
+                  {isPosDropdownOpen && (
+                    <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-brand-surface/95 border border-brand-primary/20 rounded-xl shadow-2xl z-30 backdrop-blur-md divide-y divide-white/5 custom-scrollbar">
+                      {[
+                        'Dvo CS APAC _DB Support',
+                        'Systems Super Admin',
+                        'Operations Specialist',
+                        'Lead Campaign Executive',
+                        'Chief Operations Officer',
+                        'Customer Success Manager (CSM)',
+                        'Quality Assurance Specialist (QA)',
+                        'Team Targaryen',
+                        'House Arryn',
+                        'IT Support Executive',
+                        'Admin GS',
+                        'Admin Finance',
+                        'Dvo CS APAC ETC',
+                        'Dracarys',
+                        'Gnarly',
+                        'Sparta/Gnarly',
+                        'Project Manager (PM)',
+                        'Demigods',
+                        'Demigods/Artemis',
+                        'CSM/OM',
+                        '(Paradigm)',
+                        'Dvo CS-NorthAM Support',
+                        'Database Support Specialist',
+                        'Administrative Officer',
+                        'Lead Generation Specialist',
+                        'Sales Development Representative (SDR)',
+                        'Team Leader',
+                        'OJT'
+                      ]
+                        .filter(opt => opt.toLowerCase().includes(position.toLowerCase()))
+                        .map((teamOpt, idx) => (
+                          <button
+                            key={teamOpt}
+                            type="button"
+                            onMouseDown={() => {
+                              setPosition(teamOpt);
+                              setIsPosDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2 hover:bg-brand-primary/10 hover:text-brand-primary text-gray-300 font-mono text-[10px] transition-all flex items-center justify-between"
+                          >
+                            <span>{teamOpt}</span>
+                            {position.toLowerCase() === teamOpt.toLowerCase() && (
+                              <CheckCircle className="h-3 w-3 text-brand-primary" />
+                            )}
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
+                {focusedField === 'position' && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] text-brand-primary font-mono mt-1 flex justify-between items-center px-1"
+                  >
+                    <span>✎ Search or type your role</span>
+                    <span>Options listed: 28</span>
+                  </motion.p>
+                )}
               </div>
 
               <div>
@@ -394,6 +520,55 @@ export default function ProfilePage({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Divider and Password Reset request to Super Admin */}
+              <div className="col-span-1 md:col-span-2 border-t border-white/5 my-3 pt-4">
+                <h4 className="text-white font-mono text-[11px] uppercase tracking-wider font-bold mb-1 flex items-center gap-1.5">
+                  <Lock className="h-4 w-4 text-brand-primary" /> Passcode & Security Reset Request
+                </h4>
+                <p className="text-[10px] text-gray-400 leading-relaxed mb-3">
+                  Directly submit a password reset request. The credentials update will be securely queued for Super Admin validation and approval.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 items-end">
+                  <div className="relative flex-1">
+                    <Key className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="password"
+                      value={desiredPassword}
+                      onChange={(e) => setDesiredPassword(e.target.value)}
+                      placeholder="Specify desired passcode Phrase"
+                      className="w-full bg-brand-dark border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white focus:outline-none focus:border-brand-primary font-mono text-xs"
+                      title="Desired new password phrase"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (!desiredPassword.trim()) {
+                        setUploadError('Please specify preferred passcode first.');
+                        return;
+                      }
+                      setUploadError('');
+                      if (onRequestPasswordReset) {
+                        onRequestPasswordReset(currentUser.id, currentUser.name, desiredPassword.trim());
+                        setDesiredPassword('');
+                        setResetRequestSuccess(true);
+                        setTimeout(() => setResetRequestSuccess(false), 4000);
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-brand-primary border border-brand-primary/20 hover:border-brand-primary/40 font-bold font-mono text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-1.5 h-9.5 shrink-0"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 shrink-0" /> Request Reset
+                  </button>
+                </div>
+                {resetRequestSuccess && (
+                  <div className="mt-2.5 p-2 bg-yellow-500/10 border border-yellow-500/20 text-brand-primary text-[10px] font-mono rounded-lg flex items-center gap-1.5">
+                    <CheckCircle className="h-4 w-4 shrink-0" />
+                    <span>Password reset request successfully queued for Super Admin approval.</span>
+                  </div>
+                )}
               </div>
 
               <div className="md:col-span-2 flex justify-end pt-2">

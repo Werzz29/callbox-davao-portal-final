@@ -3,14 +3,104 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Star, Sparkles, ExternalLink, Activity, ArrowRight,
   Mail, MessageSquare, Video, Database, PhoneCall, Users, 
-  Fingerprint, Wrench, DollarSign, GraduationCap, BookOpen, BarChart3, Clock, Check, AlertCircle 
+  Fingerprint, Wrench, DollarSign, GraduationCap, BookOpen, BarChart3, Clock, Check, AlertCircle,
+  ArrowLeft, RotateCw, Copy, Globe, X, Shield, Eye
 } from 'lucide-react';
 import { ResourceLink, UserRole } from '../types';
+
+// Real-time responsive Link Preview Image Component with Unsplash thematic fallbacks
+export function LinkPreviewImage({ 
+  url, 
+  category, 
+  alt, 
+  onClick,
+  children
+}: { 
+  url: string; 
+  category: string; 
+  alt: string; 
+  onClick?: () => void;
+  children?: React.ReactNode;
+}) {
+  const fallbacks: Record<string, string> = {
+    'Communication': 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=400&auto=format&fit=crop&q=60',
+    'Operations': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&auto=format&fit=crop&q=60',
+    'Human Resources': 'https://images.unsplash.com/photo-1521791136368-1a46827d0adb?w=400&auto=format&fit=crop&q=60',
+    'Learning': 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&auto=format&fit=crop&q=60',
+    'IT Support': 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400&auto=format&fit=crop&q=60',
+  };
+  
+  const defaultImg = fallbacks[category] || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&auto=format&fit=crop&q=60';
+  const [imgSrc, setImgSrc] = useState<string>(defaultImg);
+  const [loading, setLoading] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [hasLoadedPreview, setHasLoadedPreview] = useState(false);
+
+  useEffect(() => {
+    if (hasLoadedPreview) return;
+
+    let active = true;
+    const delayTimer = setTimeout(() => {
+      setLoading(true);
+      const screenshotUrl = `https://api.microlink.io/?url=${encodeURIComponent(url)}&screenshot=true&embed=screenshot.url`;
+      
+      const img = new Image();
+      img.src = screenshotUrl;
+      img.onload = () => {
+        if (active) {
+          setImgSrc(screenshotUrl);
+          setLoading(false);
+          setHasLoadedPreview(true);
+        }
+      };
+      img.onerror = () => {
+        if (active) {
+          setLoading(false);
+          // Gracefully stick with the beautiful Unsplash fallback on error or 429
+          setImgSrc(defaultImg);
+          setHasLoadedPreview(true);
+        }
+      };
+    }, Math.random() * 1200 + 100); // Small robust randomized staggered delay to distribute active network queries safely
+
+    return () => {
+      active = false;
+      clearTimeout(delayTimer);
+    };
+  }, [url, hasLoadedPreview, defaultImg]);
+
+  return (
+    <div 
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="relative w-full h-44 bg-brand-dark/40 rounded-xl overflow-hidden border border-white/5 mb-3 group-hover:border-brand-primary/25 cursor-pointer transition-all duration-300 active:scale-[0.98]"
+      title="Launch external page"
+    >
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-brand-dark/60 backdrop-blur-xs z-10">
+          <div className="h-4 w-4 border border-brand-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+      <img
+        src={imgSrc}
+        alt={alt}
+        referrerPolicy="no-referrer"
+        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0d121f]/90 via-[#0d121f]/20 to-transparent opacity-80" />
+      <div className="absolute bottom-2.5 right-2.5 z-20 p-1.5 bg-brand-dark/80 backdrop-blur-md rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110">
+        <ExternalLink className="h-3.5 w-3.5 text-brand-primary" />
+      </div>
+      {children}
+    </div>
+  );
+}
 
 // Safe component mapper for dynamic Lucide icons
 export function DynamicIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
@@ -77,6 +167,11 @@ export default function LinkHub({
 
   const [launchingLink, setLaunchingLink] = useState<ResourceLink | null>(null);
   const [launchStep, setLaunchStep] = useState(0);
+
+  // Embedded Sandbox Workspace Viewer
+  const [sandboxLink, setSandboxLink] = useState<ResourceLink | null>(null);
+  const [sandboxIframeLoading, setSandboxIframeLoading] = useState<boolean>(true);
+  const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
 
   // Custom Controls for the Infinite Marquee Slides
   const [speed, setSpeed] = useState<number>(135); // animation duration in seconds
@@ -277,27 +372,33 @@ export default function LinkHub({
                       <div className="absolute top-0 left-0 w-1 h-full bg-brand-primary transform -translate-x-1 group-hover:translate-x-0 transition-transform duration-300" />
 
                       <div>
-                        {/* Top Bar inside card Pin/Icon */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-primary/10 to-brand-primary/5 border border-brand-primary/10 text-brand-primary group-hover:gold-glow transition-all duration-300">
-                            <DynamicIcon name={link.icon} className="h-5 w-5" />
+                        {/* Auto embedded landing page image preview */}
+                        <LinkPreviewImage 
+                          url={link.url} 
+                          category={link.category} 
+                          alt={link.title} 
+                          onClick={() => handleLaunch(link)} 
+                        >
+                          {/* Floating components inside the image preview */}
+                          <div className="absolute top-2.5 left-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-dark/80 backdrop-blur-md border border-white/10 text-brand-primary shadow-lg transition-all duration-300 hover:scale-105">
+                            <DynamicIcon name={link.icon} className="h-4.5 w-4.5" />
                           </div>
 
-                          <div className="flex gap-1.5">
-                            {/* Favorite button */}
-                            <button
-                              onClick={() => onToggleFavorite(link.id)}
-                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                                isFav 
-                                  ? 'bg-brand-primary/10 border-brand-primary/30 text-brand-primary' 
-                                  : 'bg-white/5 border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/10'
-                              }`}
-                              title={isFav ? "Remove from Favorites" : "Mark as Favorite"}
-                            >
-                              <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-brand-primary' : ''}`} />
-                            </button>
-                          </div>
-                        </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleFavorite(link.id);
+                            }}
+                            className={`absolute top-2.5 right-2.5 z-20 p-2 rounded-xl backdrop-blur-md border transition-all duration-300 cursor-pointer shadow-lg hover:scale-105 ${
+                              isFav 
+                                ? 'bg-brand-primary border-brand-primary text-brand-dark' 
+                                : 'bg-brand-dark/80 border-white/10 text-gray-400 hover:text-white'
+                            }`}
+                            title={isFav ? "Remove from Favorites" : "Mark as Favorite"}
+                          >
+                            <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-current' : ''}`} />
+                          </button>
+                        </LinkPreviewImage>
 
                         {/* Category Label */}
                         <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -324,18 +425,21 @@ export default function LinkHub({
                       </div>
 
                       {/* Bottom stats & Launch Trigger */}
-                      <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-white/5 pt-3 mt-3 gap-2">
                         <div className="flex items-center gap-1 text-[10px] font-mono text-gray-500">
                           <Activity className="h-3 w-3 text-brand-primary" />
                           <span>{link.clickCount.toLocaleString()} launches</span>
                         </div>
 
-                        <button
-                          onClick={() => handleLaunch(link)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-brand-primary hover:text-brand-dark border border-white/10 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold text-brand-primary font-mono cursor-pointer"
-                        >
-                          Quick Launch <ArrowRight className="h-3 w-3" />
-                        </button>
+                        <div className="flex items-center gap-1.5 self-end">
+                          <button
+                            onClick={() => handleLaunch(link)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-brand-dark border border-brand-primary/20 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold font-mono cursor-pointer"
+                            title="Launch website directly in another browser tab"
+                          >
+                            Quick Launch <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -361,27 +465,33 @@ export default function LinkHub({
                       <div className="absolute top-0 left-0 w-1 h-full bg-brand-primary transform -translate-x-1 group-hover:translate-x-0 transition-transform duration-300" />
 
                       <div>
-                        {/* Top Bar inside card Pin/Icon */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-primary/10 to-brand-primary/5 border border-brand-primary/10 text-brand-primary group-hover:gold-glow transition-all duration-300">
-                            <DynamicIcon name={link.icon} className="h-5 w-5" />
+                        {/* Auto embedded landing page image preview */}
+                        <LinkPreviewImage 
+                          url={link.url} 
+                          category={link.category} 
+                          alt={link.title} 
+                          onClick={() => handleLaunch(link)} 
+                        >
+                          {/* Floating components inside the image preview */}
+                          <div className="absolute top-2.5 left-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-dark/80 backdrop-blur-md border border-white/10 text-brand-primary shadow-lg transition-all duration-300 hover:scale-105">
+                            <DynamicIcon name={link.icon} className="h-4.5 w-4.5" />
                           </div>
 
-                          <div className="flex gap-1.5">
-                            {/* Favorite button */}
-                            <button
-                              onClick={() => onToggleFavorite(link.id)}
-                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                                isFav 
-                                  ? 'bg-brand-primary/10 border-brand-primary/30 text-brand-primary' 
-                                  : 'bg-white/5 border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/10'
-                              }`}
-                              title={isFav ? "Remove from Favorites" : "Mark as Favorite"}
-                            >
-                              <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-brand-primary' : ''}`} />
-                            </button>
-                          </div>
-                        </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleFavorite(link.id);
+                            }}
+                            className={`absolute top-2.5 right-2.5 z-20 p-2 rounded-xl backdrop-blur-md border transition-all duration-300 cursor-pointer shadow-lg hover:scale-105 ${
+                              isFav 
+                                ? 'bg-brand-primary border-brand-primary text-brand-dark' 
+                                : 'bg-brand-dark/80 border-white/10 text-gray-400 hover:text-white'
+                            }`}
+                            title={isFav ? "Remove from Favorites" : "Mark as Favorite"}
+                          >
+                            <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-current' : ''}`} />
+                          </button>
+                        </LinkPreviewImage>
 
                         {/* Category Label */}
                         <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -408,18 +518,21 @@ export default function LinkHub({
                       </div>
 
                       {/* Bottom stats & Launch Trigger */}
-                      <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-white/5 pt-3 mt-3 gap-2">
                         <div className="flex items-center gap-1 text-[10px] font-mono text-gray-500">
                           <Activity className="h-3 w-3 text-brand-primary" />
                           <span>{link.clickCount.toLocaleString()} launches</span>
                         </div>
 
-                        <button
-                          onClick={() => handleLaunch(link)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-brand-primary hover:text-brand-dark border border-white/10 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold text-brand-primary font-mono cursor-pointer"
-                        >
-                          Quick Launch <ArrowRight className="h-3 w-3" />
-                        </button>
+                        <div className="flex items-center gap-1.5 self-end">
+                          <button
+                            onClick={() => handleLaunch(link)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-brand-dark border border-brand-primary/20 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold font-mono cursor-pointer"
+                            title="Launch website directly in another browser tab"
+                          >
+                            Quick Launch <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   );
@@ -601,6 +714,123 @@ export default function LinkHub({
                 />
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Embedded live interactive portal viewer sandbox */}
+      <AnimatePresence>
+        {sandboxLink && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col justify-between bg-brand-dark/95 backdrop-blur-md p-4 sm:p-6"
+            id="portal-sandbox-iframe-overlay"
+          >
+            {/* Top Chrome Toolbar mock */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-brand-surface/80 border border-white/10 rounded-2xl p-3.5 mb-4 shadow-2xl backdrop-blur-md">
+              {/* Left Meta Info */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-9 w-9 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/10 shrink-0">
+                  <DynamicIcon name={sandboxLink.icon} className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display font-bold text-sm text-white truncate max-w-[150px] sm:max-w-[280px]">
+                      {sandboxLink.title}
+                    </h3>
+                    <span className="font-mono text-[9px] font-semibold text-brand-accent uppercase tracking-widest bg-brand-primary/10 px-2 py-0.5 rounded-full border border-brand-primary/10 shrink-0">
+                      {sandboxLink.category}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-mono truncate flex items-center gap-1.5 mt-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Secure Sandbox Container Mode
+                  </p>
+                </div>
+              </div>
+
+              {/* Center Address Bar Mock */}
+              <div className="flex-1 max-w-xl mx-0 md:mx-6">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-dark/80 border border-white/5 rounded-xl font-mono text-[10px] text-gray-400">
+                  <Shield className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span className="truncate select-all text-xs flex-1 text-gray-300">{sandboxLink.url}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(sandboxLink.url);
+                      setCopiedUrl(true);
+                      setTimeout(() => setCopiedUrl(false), 2000);
+                    }}
+                    className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-white transition-colors cursor-pointer"
+                    title="Copy direct web link"
+                  >
+                    {copiedUrl ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSandboxIframeLoading(true);
+                      const frame = document.getElementById('sandbox-viewport') as HTMLIFrameElement;
+                      if (frame) frame.src = sandboxLink.url;
+                    }}
+                    className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-white transition-colors cursor-pointer"
+                    title="Force refresh container"
+                  >
+                    <RotateCw className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right control buttons */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    handleLaunch(sandboxLink);
+                    setSandboxLink(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-brand-primary text-brand-dark rounded-xl text-xs font-semibold font-mono hover:bg-amber-400 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  title="Force relaunch directly in fully un-sandboxed secure standard browser tab"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Launch Tab
+                </button>
+
+                <button
+                  onClick={() => setSandboxLink(null)}
+                  className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-all cursor-pointer border border-white/5"
+                  title="Close and exit workspace preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Warning disclaimer regarding iframe policies */}
+            <div className="mb-3 px-4 py-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-xl text-[10px] sm:text-xs font-mono flex items-start gap-2.5">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <strong>Sandbox Handshake Protocol Disclaimer:</strong> Some external domains (e.g. Google Services, Zoom, Discord, and internal VPN panels) restrict direct iframe rendering using browser headers (<code className="text-white">X-Frame-Options: SAMEORIGIN</code>) to prevent framing exploits. If the viewport below remains blank or states "Connection refused", click the <strong>Launch Tab</strong> button in the top right to complete standard routing.
+              </div>
+            </div>
+
+            {/* IFrame Viewport Frame */}
+            <div className="flex-1 bg-brand-dark rounded-2xl border border-white/10 overflow-hidden relative shadow-inner">
+              {sandboxIframeLoading && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-brand-dark/95 animate-fade-in">
+                  <div className="h-10 w-10 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mb-4" />
+                  <p className="font-mono text-xs text-gray-400 animate-pulse">Mounting landing page into live iframe context wrapper...</p>
+                </div>
+              )}
+              
+              <iframe
+                id="sandbox-viewport"
+                src={sandboxLink.url}
+                className="w-full h-full bg-[#111113]"
+                referrerPolicy="no-referrer"
+                onLoad={() => setSandboxIframeLoading(false)}
+                title={`Live Workspace Viewport - ${sandboxLink.title}`}
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

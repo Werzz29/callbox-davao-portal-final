@@ -36,7 +36,7 @@ export default function LandingHero({ onEnterPortal, onOpenSitemap }: LandingHer
   }, []);
 
   return (
-    <div className="min-h-screen bg-brand-dark overflow-x-hidden relative flex flex-col justify-between" id="portal-landing-hero">
+    <div className="min-h-screen bg-transparent overflow-x-hidden relative flex flex-col justify-between" id="portal-landing-hero">
       
       {/* Decorative gradient glowing backing fields */}
       <div className="absolute top-[-100px] left-[-100px] w-[400px] h-[400px] bg-brand-primary/10 rounded-full blur-[140px] pointer-events-none" />

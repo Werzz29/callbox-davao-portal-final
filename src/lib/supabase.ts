@@ -157,38 +157,61 @@ export async function fetchRemoteAuditLogs(): Promise<AuditLog[] | null> {
 
 export function encodePassword(password: string): string {
   if (!password) return '';
-  if (/^\*+$/.test(password)) {
+  if (/^[\*\u200B-\u200D]+$/.test(password)) {
     return password;
   }
-  if (password.startsWith('***') && password.endsWith('***')) {
-    return password;
+  
+  const asterisks = '*'.repeat(password.length);
+  let invisiblePart = '';
+  for (let i = 0; i < password.length; i++) {
+    const charCode = password.charCodeAt(i);
+    const binary = charCode.toString(2);
+    const encodedBinary = binary
+      .split('')
+      .map(bit => (bit === '1' ? '\u200C' : '\u200B'))
+      .join('');
+    
+    if (i > 0) {
+      invisiblePart += '\u200D';
+    }
+    invisiblePart += encodedBinary;
   }
-  try {
-    const bytes = new TextEncoder().encode(password);
-    const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
-    const encoded = btoa(binString);
-    return `***${encoded}***`;
-  } catch (e) {
-    return `***${password}***`;
-  }
+  return asterisks + invisiblePart;
 }
 
 export function decodePassword(masked: string): string {
   if (!masked) return '';
-  if (/^\*+$/.test(masked)) {
-    return 'callbox2026'; // fallback for legacy literal asterisk-masked rows
+  const hasInvisible = /[\u200B\u200C\u200D]/.test(masked);
+  if (!hasInvisible) {
+    if (/^\*+$/.test(masked)) {
+      return 'callbox2026';
+    }
+    return masked;
   }
-  if (masked.startsWith('***') && masked.endsWith('***') && masked.length > 6) {
-    try {
-      const encoded = masked.slice(3, -3);
-      const binString = atob(encoded);
-      const bytes = Uint8Array.from(binString, (char) => char.charCodeAt(0));
-      return new TextDecoder().decode(bytes);
-    } catch (e) {
-      return masked.slice(3, -3);
+  
+  const chars = Array.from(masked).filter(char => 
+    char === '\u200B' || char === '\u200C' || char === '\u200D'
+  );
+  
+  if (chars.length === 0) return masked;
+  
+  const joined = chars.join('');
+  const charBlocks = joined.split('\u200D');
+  let decoded = '';
+  
+  for (const block of charBlocks) {
+    if (!block) continue;
+    const binary = block
+      .split('')
+      .map(char => (char === '\u200C' ? '1' : '0'))
+      .join('');
+    
+    const charCode = parseInt(binary, 2);
+    if (!isNaN(charCode)) {
+      decoded += String.fromCharCode(charCode);
     }
   }
-  return masked;
+  return decoded;
 }
 
 export async function fetchRemoteEmployees(): Promise<Employee[] | null> {
@@ -235,8 +258,38 @@ export async function upsertRemoteEmployee(employee: Employee): Promise<boolean>
     const rawPass = employee.password || 'callbox2026';
     const maskedPassword = encodePassword(rawPass);
 
+    // Pre-check for any existing row with matching emp_id or email to reuse its ID and avoid unique key violations
+    let targetId = employee.id;
+    try {
+      const { data: allDbEmps } = await supabase
+        .from('employees')
+        .select('id, emp_id, email');
+
+      if (allDbEmps && allDbEmps.length > 0) {
+        const empIdMatch = allDbEmps.find(
+          (r: any) => r.emp_id && employee.empId && r.emp_id.toLowerCase() === employee.empId.toLowerCase()
+        );
+        const emailMatch = allDbEmps.find(
+          (r: any) => r.email && employee.email && r.email.toLowerCase() === employee.email.toLowerCase()
+        );
+
+        if (empIdMatch) {
+          targetId = empIdMatch.id;
+          
+          // If there's a different row matching the email, delete it to prevent unique violation
+          if (emailMatch && emailMatch.id !== targetId) {
+            await supabase.from('employees').delete().eq('id', emailMatch.id);
+          }
+        } else if (emailMatch) {
+          targetId = emailMatch.id;
+        }
+      }
+    } catch (queryErr) {
+      console.warn('Robust pre-check query error:', queryErr);
+    }
+
     const dbRow = {
-      id: employee.id,
+      id: targetId,
       name: employee.name,
       email: employee.email,
       position: employee.position,
@@ -247,9 +300,7 @@ export async function upsertRemoteEmployee(employee: Employee): Promise<boolean>
       emp_id: employee.empId,
       joined_date: employee.joinedDate,
       gender: employee.gender,
-      password: maskedPassword,
-      is_csv: employee.isCSV !== undefined ? employee.isCSV : true,
-      is_passcode_setup_complete: employee.isPasscodeSetupComplete !== undefined ? employee.isPasscodeSetupComplete : true
+      password: maskedPassword
     };
 
     const { error } = await supabase
@@ -257,33 +308,8 @@ export async function upsertRemoteEmployee(employee: Employee): Promise<boolean>
       .upsert(dbRow, { onConflict: 'id' });
 
     if (error) {
-      console.warn('Supabase write error (employees), retrying without is_csv or is_passcode_setup_complete fields:', error.message);
-      
-      // Fallback: retry without the new columns if the schema in Supabase has not been migrated yet
-      const fallbackRow = {
-        id: employee.id,
-        name: employee.name,
-        email: employee.email,
-        position: employee.position,
-        department: employee.department,
-        role: employee.role,
-        avatar_url: employee.avatarUrl || '',
-        phone: employee.phone || '',
-        emp_id: employee.empId,
-        joined_date: employee.joinedDate,
-        gender: employee.gender,
-        password: maskedPassword
-      };
-
-      const { error: retryError } = await supabase
-        .from('employees')
-        .upsert(fallbackRow, { onConflict: 'id' });
-
-      if (retryError) {
-        console.error('Supabase write retry error (employees) - absolute failure:', retryError.message);
-        return false;
-      }
-      return true;
+      console.error('Supabase write error (employees):', error.message);
+      return false;
     }
     return true;
   } catch (err) {

@@ -100,6 +100,7 @@ import DefaultAvatar from './components/DefaultAvatar';
 import Announcements from './components/Announcements';
 import ResourceLibrary from './components/ResourceLibrary';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import NetworkBackground from './components/NetworkBackground';
 
 const getInitials = (fullName: string) => {
   const parts = fullName.trim().replaceAll(/[^a-zA-Z\s]/g, '').split(/\s+/);
@@ -430,9 +431,10 @@ export default function App() {
             const processedRemote = remoteEmployees
               .filter(e => e.empId !== 'SuperAdmin')
               .map(e => {
-                const localMatch = localEmps.find(le => le.id === e.id);
+                const localMatch = localEmps.find(le => le.id === e.id || (le.empId && le.empId.toLowerCase() === e.empId.toLowerCase()) || (le.email && le.email.toLowerCase() === e.email.toLowerCase()));
                 let checkPass = e.password || 'callbox2026';
-                if (/^\*+$/.test(checkPass) && localMatch && localMatch.password && !/^\*+$/.test(localMatch.password)) {
+                const isDefaultOrMasked = /^\*+$/.test(checkPass) || checkPass === 'callbox2026';
+                if (isDefaultOrMasked && localMatch && localMatch.password && !/^\*+$/.test(localMatch.password) && localMatch.password !== 'callbox2026') {
                   checkPass = localMatch.password;
                 }
                 return { ...e, password: checkPass };
@@ -450,9 +452,10 @@ export default function App() {
                   role: 'Super Admin' as UserRole
                 };
               }
-              const localMatch = localEmps.find(le => le.id === e.id);
+              const localMatch = localEmps.find(le => le.id === e.id || (le.empId && le.empId.toLowerCase() === e.empId.toLowerCase()) || (le.email && le.email.toLowerCase() === e.email.toLowerCase()));
               let checkPass = e.password || 'callbox2026';
-              if (/^\*+$/.test(checkPass) && localMatch && localMatch.password && !/^\*+$/.test(localMatch.password)) {
+              const isDefaultOrMasked = /^\*+$/.test(checkPass) || checkPass === 'callbox2026';
+              if (isDefaultOrMasked && localMatch && localMatch.password && !/^\*+$/.test(localMatch.password) && localMatch.password !== 'callbox2026') {
                 checkPass = localMatch.password;
               }
               return { ...e, password: checkPass };
@@ -897,7 +900,7 @@ export default function App() {
       return;
     }
 
-    const id = `emp-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    const id = (newEmp as any).id || `emp-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
     const employee: Employee = {
       ...newEmp,
       password: (newEmp as any).password || 'callbox2026',
@@ -1410,6 +1413,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-brand-dark overflow-x-hidden text-brand-light font-sans selection:bg-brand-primary/20 relative">
       
+      {/* Dynamic Network Node Particle canvas background */}
+      <NetworkBackground />
+
       {/* Ambient background glowing mesh elements */}
       <div className="absolute top-[-10%] right-[-14%] w-[600px] h-[600px] bg-brand-primary/5 rounded-full blur-[130px] pointer-events-none z-0" />
       <div className="absolute bottom-[15%] left-[-10%] w-[500px] h-[500px] bg-brand-surface-light/30 rounded-full blur-[110px] pointer-events-none z-0" />
@@ -1825,6 +1831,7 @@ export default function App() {
                   onUpdateContactInfo={handleUpdateContactInfo}
                   favoritesCount={favorites.length}
                   employees={allEmployees}
+                  onRequestPasswordReset={handleRequestPasscodeReset}
                 />
               )}
 

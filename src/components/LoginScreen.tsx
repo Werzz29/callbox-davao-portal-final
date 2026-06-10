@@ -190,9 +190,15 @@ export default function LoginScreen({
     }
     if (!inputClean) return null;
     return employees.find(emp => {
+      if (emp.role === 'Super Admin' || emp.role === 'HR') return false;
       const emailLower = emp.email.toLowerCase();
-      // Require the complete exact email address to matched
-      return emailLower === inputClean && emp.role !== 'Super Admin' && emp.role !== 'HR';
+      const emailPrefix = emailLower.split('@')[0];
+      const empIdLower = emp.empId.toLowerCase();
+      const nameLower = emp.name.toLowerCase();
+      return emailLower === inputClean || 
+             emailPrefix === inputClean || 
+             empIdLower === inputClean || 
+             nameLower === inputClean;
     });
   })();
 
@@ -465,7 +471,7 @@ export default function LoginScreen({
   };
 
   return (
-    <div className="min-h-screen bg-brand-dark flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden animate-fade-in" id="portal-login-screen">
+    <div className="min-h-screen bg-transparent flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden animate-fade-in" id="portal-login-screen">
       
       {/* Absolute floating ambient backgrounds */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-brand-primary/10 rounded-full blur-[140px] pointer-events-none" />
