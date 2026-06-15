@@ -47,6 +47,7 @@ export interface Announcement {
   isPinned: boolean;
   departmentScope?: string;
   isCritical?: boolean;
+  icon?: string;
 }
 
 export interface ResourceDocument {

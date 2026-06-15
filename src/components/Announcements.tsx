@@ -39,6 +39,8 @@ export default function Announcements({
   const [formIsPinned, setFormIsPinned] = useState(false);
   const [formIsCritical, setFormIsCritical] = useState(false);
   const [publishedSuccess, setPublishedSuccess] = useState(false);
+  const [selectedIcon, setSelectedIcon] = useState('📢');
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 
   const categories = ['All', 'Company Wide', 'HR Notice', 'Operations', 'Training', 'Upcoming Event', 'IT Support'];
 
@@ -64,7 +66,8 @@ export default function Announcements({
       content: formContent,
       publishedBy: employeeName,
       isPinned: formIsPinned,
-      isCritical: formIsCritical
+      isCritical: formIsCritical,
+      icon: selectedIcon
     });
 
     setPublishedSuccess(true);
@@ -77,6 +80,7 @@ export default function Announcements({
       setFormContent('');
       setFormIsPinned(false);
       setFormIsCritical(false);
+      setSelectedIcon('📢');
     }, 1500);
   };
 
@@ -114,8 +118,11 @@ export default function Announcements({
           </div>
 
           <div className="max-w-2xl">
-            <h3 className="font-display text-xl sm:text-2xl font-bold text-white tracking-snug hover:text-brand-secondary transition-colors cursor-pointer" onClick={() => setNewsDrawerItem(pinnedItems[0])}>
-              {pinnedItems[0].title}
+            <h3 className="font-display text-xl sm:text-2xl font-bold text-white tracking-snug hover:text-brand-secondary transition-colors cursor-pointer flex items-center gap-2" onClick={() => setNewsDrawerItem(pinnedItems[0])}>
+              {pinnedItems[0].icon ? (
+                <span className="text-2xl shrink-0 leading-none">{pinnedItems[0].icon}</span>
+              ) : null}
+              <span>{pinnedItems[0].title}</span>
             </h3>
             <p className="text-sm text-gray-400 mt-2 line-clamp-2 leading-relaxed">
               {pinnedItems[0].summary}
@@ -213,8 +220,11 @@ export default function Announcements({
                   </div>
                 </div>
 
-                <h4 className="font-display font-semibold text-white group-hover:text-brand-primary transition-colors cursor-pointer flex items-center gap-1" onClick={() => setNewsDrawerItem(item)}>
-                  {item.title}
+                <h4 className="font-display font-semibold text-white group-hover:text-brand-primary transition-colors cursor-pointer flex items-center gap-1.5" onClick={() => setNewsDrawerItem(item)}>
+                  {item.icon ? (
+                    <span className="text-base shrink-0 leading-none" title="Announcement Icon">{item.icon}</span>
+                  ) : null}
+                  <span>{item.title}</span>
                 </h4>
                 <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed font-sans">{item.summary}</p>
               </div>
@@ -269,8 +279,11 @@ export default function Announcements({
                   {newsDrawerItem.category}
                 </span>
                 
-                <h3 className="font-display text-lg sm:text-xl font-bold text-white mt-2 leading-snug">
-                  {newsDrawerItem.title}
+                <h3 className="font-display text-lg sm:text-xl font-bold text-white mt-2 leading-snug flex items-center gap-2">
+                  {newsDrawerItem.icon ? (
+                    <span className="text-2xl shrink-0 leading-none" title="Announcement Icon">{newsDrawerItem.icon}</span>
+                  ) : null}
+                  <span>{newsDrawerItem.title}</span>
                 </h3>
               </div>
 
@@ -344,17 +357,76 @@ export default function Announcements({
                 <form onSubmit={handleCreateAnnouncement} className="space-y-4 text-xs font-sans">
                   {/* Title & Category row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
+                    <div className="relative">
                       <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Title Headline *</label>
-                      <input
-                        type="text"
-                        required
-                        value={formTitle}
-                        onChange={(e) => setFormTitle(e.target.value)}
-                        placeholder="e.g. Mandatory Calibration Q3"
-                        className="w-full bg-brand-dark border border-white/10 rounded-lg p-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary"
-                        title="Form title"
-                      />
+                      <div className="flex gap-2">
+                        {/* Selected Icon Display / Trigger Button */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setIsIconPickerOpen(!isIconPickerOpen)}
+                            className="flex items-center justify-center bg-brand-dark hover:bg-white/5 border border-white/10 hover:border-brand-primary/45 text-white rounded-lg w-10 h-10 text-base transition-all cursor-pointer shadow-inner shrink-0"
+                            title="Choose announcement icon"
+                            id="announcement-select-icon-button"
+                          >
+                            <span>{selectedIcon}</span>
+                          </button>
+                          
+                          {/* Floating Icon Picker Panel */}
+                          <AnimatePresence>
+                            {isIconPickerOpen && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                className="absolute left-0 mt-2 p-3 bg-brand-dark border border-white/15 rounded-xl shadow-2xl z-30 w-[240px]"
+                              >
+                                <div className="font-mono text-[9px] uppercase tracking-wider text-brand-primary mb-2 font-bold flex justify-between items-center">
+                                  <span>Choose Bulletin Icon</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsIconPickerOpen(false)}
+                                    className="text-gray-500 hover:text-white cursor-pointer"
+                                  >
+                                    &times;
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-6 gap-1.5">
+                                  {[
+                                    '📢', '🌟', '⚙️', '🏥', '🎓', '📅', 
+                                    '🔔', '⚠️', '💡', '🔒', '🎉', '🏆', 
+                                    '📌', '🚀', '💬', '📊', '📞', '💻'
+                                  ].map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedIcon(emoji);
+                                        setIsIconPickerOpen(false);
+                                      }}
+                                      className={`h-7 w-7 flex items-center justify-center rounded-md text-base hover:bg-white/10 active:scale-90 transition-all cursor-pointer ${
+                                        selectedIcon === emoji ? 'bg-brand-primary/20 border border-brand-primary/30' : ''
+                                      }`}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        
+                        <input
+                          type="text"
+                          required
+                          value={formTitle}
+                          onChange={(e) => setFormTitle(e.target.value)}
+                          placeholder="e.g. Mandatory Calibration Q3"
+                          className="w-full bg-brand-dark border border-white/10 rounded-lg px-3 py-2 h-10 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary text-xs"
+                          title="Form title"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Bullet Category *</label>

@@ -9,7 +9,7 @@ import {
   Search, Star, Sparkles, ExternalLink, Activity, ArrowRight,
   Mail, MessageSquare, Video, Database, PhoneCall, Users, 
   Fingerprint, Wrench, DollarSign, GraduationCap, BookOpen, BarChart3, Clock, Check, AlertCircle,
-  ArrowLeft, RotateCw, Copy, Globe, X, Shield, Eye
+  ArrowLeft, RotateCw, Copy, Globe, X, Shield, Eye, ChevronLeft, ChevronRight, LayoutGrid, Sliders
 } from 'lucide-react';
 import { ResourceLink, UserRole } from '../types';
 
@@ -28,73 +28,145 @@ export function LinkPreviewImage({
   children?: React.ReactNode;
 }) {
   const fallbacks: Record<string, string> = {
-    'Communication': 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=400&auto=format&fit=crop&q=60',
-    'Operations': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&auto=format&fit=crop&q=60',
-    'Human Resources': 'https://images.unsplash.com/photo-1521791136368-1a46827d0adb?w=400&auto=format&fit=crop&q=60',
-    'Learning': 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&auto=format&fit=crop&q=60',
-    'IT Support': 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400&auto=format&fit=crop&q=60',
+    'Communication': 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=450&auto=format&fit=crop&q=80',
+    'Operations': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=450&auto=format&fit=crop&q=80',
+    'Human Resources': 'https://images.unsplash.com/photo-1521791136368-1a46827d0adb?w=450&auto=format&fit=crop&q=80',
+    'Learning': 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=450&auto=format&fit=crop&q=80',
+    'IT Support': 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=450&auto=format&fit=crop&q=80',
   };
   
-  const defaultImg = fallbacks[category] || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&auto=format&fit=crop&q=60';
-  const [imgSrc, setImgSrc] = useState<string>(defaultImg);
-  const [loading, setLoading] = useState(false);
+  const defaultImg = fallbacks[category] || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=450&auto=format&fit=crop&q=80';
+  const [imgSrc, setImgSrc] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [hasLoadedPreview, setHasLoadedPreview] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Lazy load: Observe intersection viewport presence before starting costly dynamic microlink preview downloads
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '100px' }
+    );
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
-    if (hasLoadedPreview) return;
+    if (!isInView) return;
 
     let active = true;
+    let resolved = false;
+    setLoading(true);
+
+    // Dynamic responsive fallback: if API requests take longer than 4.5 seconds, fallback to high-res thematic Unsplash
+    const timeoutTimer = setTimeout(() => {
+      if (active && !resolved) {
+        resolved = true;
+        setImgSrc(defaultImg);
+        setLoading(false);
+        setImageLoaded(true);
+      }
+    }, 4500);
+
     const delayTimer = setTimeout(() => {
-      setLoading(true);
+      if (resolved) return;
       const screenshotUrl = `https://api.microlink.io/?url=${encodeURIComponent(url)}&screenshot=true&embed=screenshot.url`;
       
       const img = new Image();
-      img.src = screenshotUrl;
       img.onload = () => {
-        if (active) {
+        if (active && !resolved) {
+          resolved = true;
           setImgSrc(screenshotUrl);
-          setLoading(false);
-          setHasLoadedPreview(true);
         }
       };
       img.onerror = () => {
-        if (active) {
-          setLoading(false);
-          // Gracefully stick with the beautiful Unsplash fallback on error or 429
+        if (active && !resolved) {
+          resolved = true;
           setImgSrc(defaultImg);
-          setHasLoadedPreview(true);
+          setLoading(false);
+          setImageLoaded(true);
         }
       };
-    }, Math.random() * 1200 + 100); // Small robust randomized staggered delay to distribute active network queries safely
+      img.src = screenshotUrl;
+    }, Math.random() * 600 + 100); // Randomized stagger delay to avoid simultaneous API requests limit
 
     return () => {
       active = false;
       clearTimeout(delayTimer);
+      clearTimeout(timeoutTimer);
     };
-  }, [url, hasLoadedPreview, defaultImg]);
+  }, [url, isInView, defaultImg]);
 
   return (
     <div 
+      ref={containerRef}
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="relative w-full h-44 bg-brand-dark/40 rounded-xl overflow-hidden border border-white/5 mb-3 group-hover:border-brand-primary/25 cursor-pointer transition-all duration-300 active:scale-[0.98]"
       title="Launch external page"
     >
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-brand-dark/60 backdrop-blur-xs z-10">
-          <div className="h-4 w-4 border border-brand-primary border-t-transparent rounded-full animate-spin" />
+      {/* High-fidelity custom Skeleton Loader with shimmer gradient moving */}
+      {(!isInView || loading || !imageLoaded) && (
+        <div className="absolute inset-0 z-10 bg-[#070b13] flex flex-col justify-between p-4 overflow-hidden">
+          {/* Animated custom shimmer moving left-to-right */}
+          <div className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer pointer-events-none" style={{ left: '-50%' }} />
+          
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-white/5 animate-pulse shrink-0" />
+            <div className="space-y-1.5 flex-1">
+              <div className="h-2.5 bg-white/10 rounded-sm w-3/4 animate-pulse" />
+              <div className="h-1.5 bg-white/5 rounded-sm w-1/2 animate-pulse" />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="h-2 bg-white/5 rounded-sm w-full animate-pulse" />
+            <div className="h-2 bg-white/5 rounded-sm w-[90%] animate-pulse" />
+          </div>
+          
+          <div className="flex justify-between items-center mt-2 pt-2 border-t border-white/5">
+            <div className="h-2 bg-white/5 rounded-sm w-12 animate-pulse" />
+            <div className="h-4 bg-brand-primary/15 rounded-md w-14 animate-pulse" />
+          </div>
         </div>
       )}
-      <img
-        src={imgSrc}
-        alt={alt}
-        referrerPolicy="no-referrer"
-        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
-      />
+
+      {/* Actual lazy-loaded image view */}
+      {isInView && imgSrc && (
+        <img
+          src={imgSrc}
+          alt={alt}
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          onLoad={() => {
+            setImageLoaded(true);
+            setLoading(false);
+          }}
+          onError={() => {
+            if (imgSrc !== defaultImg) {
+              setImgSrc(defaultImg);
+            }
+          }}
+          className={`w-full h-full object-cover transition-all duration-700 ease-out ${
+            imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          } group-hover:scale-110 group-hover:brightness-105`}
+        />
+      )}
+
       <div className="absolute inset-0 bg-gradient-to-t from-[#0d121f]/90 via-[#0d121f]/20 to-transparent opacity-80" />
-      <div className="absolute bottom-2.5 right-2.5 z-20 p-1.5 bg-brand-dark/80 backdrop-blur-md rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110">
+      <div className="absolute bottom-2.5 right-2.5 z-20 p-1.5 bg-brand-dark/80 backdrop-blur-md rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 hover:scale-110">
         <ExternalLink className="h-3.5 w-3.5 text-brand-primary" />
       </div>
       {children}
@@ -142,6 +214,17 @@ export default function LinkHub({
 }: LinkHubProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  // Filter links declared early for scroll listeners and sub-hooks
+  const filteredLinks = useMemo(() => {
+    return links.filter(link => {
+      const matchesSearch = link.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            link.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || link.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [links, searchTerm, selectedCategory]);
+
   const [recentLaunches, setRecentLaunches] = useState<string[]>([]);
 
   // Load user-scoped recently visited links
@@ -172,13 +255,63 @@ export default function LinkHub({
   const [sandboxLink, setSandboxLink] = useState<ResourceLink | null>(null);
   const [sandboxIframeLoading, setSandboxIframeLoading] = useState<boolean>(true);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
-
-  // Custom Controls for the Infinite Marquee Slides
-  const [speed, setSpeed] = useState<number>(135); // animation duration in seconds
-  const [isPaused, setIsPaused] = useState<boolean>(false);
-  const [viewLayout, setViewLayout] = useState<'marquee' | 'grid'>('marquee');
+  const [viewLayout, setViewLayout] = useState<'carousel' | 'grid'>('carousel');
 
   const categories = ['All', 'Communication', 'Operations', 'Human Resources', 'Learning', 'IT Support'];
+
+  // Carousel ref and scroll state synchronizer
+  const carouselRef = React.useRef<HTMLDivElement>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const handleCarouselScroll = () => {
+    const el = carouselRef.current;
+    if (!el) return;
+    
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    if (maxScrollLeft <= 0) {
+      setScrollProgress(100);
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+
+    const currentScroll = el.scrollLeft;
+    const progress = (currentScroll / maxScrollLeft) * 100;
+    setScrollProgress(progress);
+    setCanScrollLeft(currentScroll > 5);
+    setCanScrollRight(currentScroll < maxScrollLeft - 5);
+  };
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    const el = carouselRef.current;
+    if (!el) return;
+
+    const scrollAmount = el.clientWidth * 0.82;
+    el.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth'
+    });
+  };
+
+  useEffect(() => {
+    handleCarouselScroll();
+    
+    const el = carouselRef.current;
+    if (el) {
+      el.addEventListener('scroll', handleCarouselScroll, { passive: true });
+    }
+    
+    window.addEventListener('resize', handleCarouselScroll);
+    
+    return () => {
+      if (el) {
+        el.removeEventListener('scroll', handleCarouselScroll);
+      }
+      window.removeEventListener('resize', handleCarouselScroll);
+    };
+  }, [filteredLinks]);
 
   // Handle launch animation sequence
   const handleLaunch = (link: ResourceLink) => {
@@ -200,27 +333,6 @@ export default function LinkHub({
     }, 2200);
   };
 
-  // Filter links
-  const filteredLinks = useMemo(() => {
-    return links.filter(link => {
-      const matchesSearch = link.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            link.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'All' || link.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [links, searchTerm, selectedCategory]);
-
-  const duplicatedLinks = useMemo(() => {
-    if (filteredLinks.length === 0) return [];
-    let list = [...filteredLinks];
-    // Scale up catalog length so animation is continuous & fills horizontal space
-    while (list.length < 10) {
-      list = [...list, ...filteredLinks];
-    }
-    // Duplicate fully to build seamless 50% loop offset boundaries
-    return [...list, ...list];
-  }, [filteredLinks]);
-
   const mostUsedLinks = useMemo(() => {
     return [...links].sort((a, b) => b.clickCount - a.clickCount).slice(0, 3);
   }, [links]);
@@ -231,10 +343,10 @@ export default function LinkHub({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-1 text-brand-primary font-mono text-xs uppercase tracking-wider mb-1">
-            <Sparkles className="h-4 w-4" /> Smart Resource Router
+            <Sparkles className="h-4 w-4 text-brand-primary animate-pulse" /> Active System Router
           </div>
           <h2 className="font-display text-2xl font-bold tracking-tight text-white">Central System Catalog</h2>
-          <p className="text-sm text-gray-400">Launch authenticated internal workspaces, dialing nodes, and human resources utilities.</p>
+          <p className="text-sm text-gray-400">Launch authenticated internal workspaces, dialing nodes, and department resources.</p>
         </div>
 
         {/* Global Hub Search Bar */}
@@ -275,29 +387,38 @@ export default function LinkHub({
         
         {/* Links Grid */}
         <div className="lg:col-span-3 space-y-4 overflow-hidden">
-          {/* Marquee Header Toolbar with controls */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-brand-surface/30 px-4 py-3 rounded-2xl border border-white/5">
-            <div className="flex items-center gap-3">
+          {/* Futuristic Header Panel with glowing status light */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-brand-surface/20 px-4 py-3 rounded-2xl border border-white/5 backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" />
-                <span className="font-mono text-[10px] text-gray-300 uppercase tracking-widest font-bold">
-                  {viewLayout === 'marquee' ? 'Infinite Slideshow' : 'Unified Hub Grid'}
+                <span className="h-2 w-2 rounded-full bg-brand-primary animate-ping" />
+                <span className="font-mono text-[10px] text-brand-primary uppercase tracking-widest font-extrabold">
+                  {viewLayout === 'carousel' ? 'System Matrix Carousel' : 'Unified Grid Engine'}
                 </span>
               </div>
-              
-              <div className="flex bg-black/40 rounded-xl p-0.5 border border-white/5 font-mono text-[9px] relative align-middle self-center font-bold">
+              <span className="hidden sm:inline text-gray-600">|</span>
+              <span className="font-mono text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                {filteredLinks.length} Active Node{filteredLinks.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Layout Switcher with view all options */}
+              <div className="flex bg-black/40 rounded-xl p-0.5 border border-white/5 font-mono text-[9px] font-bold">
                 <motion.button
                   type="button"
-                  onClick={() => setViewLayout('marquee')}
+                  onClick={() => setViewLayout('carousel')}
                   whileTap={{ scale: 0.94 }}
                   transition={{ type: "spring", stiffness: 450, damping: 20 }}
-                  className={`px-3 py-1 rounded-lg cursor-pointer transition-all duration-200 font-semibold flex items-center gap-1 ${
-                    viewLayout === 'marquee' 
-                      ? 'bg-brand-primary text-brand-dark shadow-lg shadow-brand-primary/15' 
+                  className={`px-3 py-1.5 rounded-lg cursor-pointer transition-all duration-200 font-bold flex items-center gap-1.5 ${
+                    viewLayout === 'carousel' 
+                      ? 'bg-brand-primary text-brand-dark shadow-lg shadow-brand-primary/15 font-bold' 
                       : 'text-gray-400 hover:text-white'
                   }`}
+                  title="Carousel slider view"
                 >
-                  Slides
+                  <Sliders className="h-3 w-3" />
+                  Slider
                 </motion.button>
                 <motion.button
                   type="button"
@@ -305,23 +426,21 @@ export default function LinkHub({
                   onClick={() => setViewLayout('grid')}
                   whileTap={{ scale: 0.94 }}
                   transition={{ type: "spring", stiffness: 450, damping: 20 }}
-                  className={`px-3 py-1 rounded-lg cursor-pointer transition-all duration-200 font-semibold flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-lg cursor-pointer transition-all duration-200 font-bold flex items-center gap-1.5 ${
                     viewLayout === 'grid' 
-                      ? 'bg-brand-primary text-brand-dark shadow-lg shadow-brand-primary/15'
+                      ? 'bg-brand-primary text-brand-dark shadow-lg shadow-brand-primary/15 font-bold'
                       : 'text-gray-400 hover:text-white'
                   }`}
+                  title="Show all links in a grid"
                 >
+                  <LayoutGrid className="h-3 w-3" />
                   View All ({filteredLinks.length})
                 </motion.button>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2 font-mono text-[9px] text-gray-500 uppercase tracking-wider">
-              <span>Automatic Pace: 135s</span>
-            </div>
           </div>
 
-          {/* Infinite Marquee Outer Track vs Static Grid View */}
+          {/* Futuristic carousel view */}
           {links.length === 0 ? (
             <div className="py-16 text-center rounded-2xl border border-dashed border-white/10 bg-brand-surface/10 flex flex-col items-center justify-center p-6 select-none">
               <div className="h-12 w-12 rounded-2xl bg-brand-primary/5 border border-brand-primary/10 flex items-center justify-center text-brand-primary mb-4 animate-pulse">
@@ -354,121 +473,171 @@ export default function LinkHub({
                 Reset active filter
               </button>
             </div>
-          ) : viewLayout === 'marquee' ? (
-            <div className="relative w-full overflow-hidden py-4 bg-gradient-to-b from-brand-surface/10 to-brand-dark/20 rounded-2xl border border-white/5 pause-hover">
-              {/* Visual fade edges overlays */}
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#0a0f1a] to-transparent z-10" />
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#0a0f1a] to-transparent z-10" />
-
+          ) : viewLayout === 'carousel' ? (
+            <div className="space-y-4">
               <div 
-                className="animate-marquee-ltr"
-                style={{
-                  animationDuration: `${speed}s`,
-                  animationPlayState: isPaused ? 'paused' : 'running',
-                }}
+                ref={carouselRef}
+                className="flex overflow-x-auto scroll-smooth snap-x snap-mandatory scrollbar-none gap-5 py-2 px-1 relative mask-fade-edges"
+                style={{ WebkitOverflowScrolling: 'touch' }}
               >
-                {duplicatedLinks.map((link, index) => {
-                  const isFav = favorites.includes(link.id);
-                  return (
-                    <div
-                      key={`${link.id}-marquee-${index}`}
-                      className="w-[280px] sm:w-[320px] shrink-0 mx-2 glass-panel glass-panel-hover rounded-2xl p-5 flex flex-col justify-between relative group overflow-hidden select-none text-left inline-flex"
-                    >
-                      {/* Glowing highlight indicator */}
-                      <div className="absolute top-0 left-0 w-1 h-full bg-brand-primary transform -translate-x-1 group-hover:translate-x-0 transition-transform duration-300" />
+                <AnimatePresence mode="popLayout">
+                  {filteredLinks.map((link) => {
+                    const isFav = favorites.includes(link.id);
+                    return (
+                      <motion.div
+                        layout
+                        key={link.id}
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                        className="w-[285px] sm:w-[320px] md:w-[calc(50%-10px)] xl:w-[calc(33.333%-14px)] shrink-0 snap-start glass-panel group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-brand-surface/20 p-5 text-left transition-all duration-500 select-none hover:border-brand-primary/25 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_20px_rgba(255,199,44,0.06)]"
+                      >
+                        {/* Top border glowing neon transition */}
+                        <div className="absolute top-0 right-0 left-0 h-[1.5px] bg-gradient-to-r from-transparent via-brand-primary/40 to-transparent opacity-50 group-hover:via-brand-primary group-hover:opacity-100 transition-all duration-500" />
+                        
+                        {/* Glowing vertical left edge overlay */}
+                        <div className="absolute top-0 bottom-0 left-0 w-[2px] bg-brand-primary scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-300" />
 
-                      <div>
-                        {/* Auto embedded landing page image preview */}
-                        <LinkPreviewImage 
-                          url={link.url} 
-                          category={link.category} 
-                          alt={link.title} 
-                          onClick={() => handleLaunch(link)} 
-                        >
-                          {/* Floating components inside the image preview */}
-                          <div className="absolute top-2.5 left-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-dark/80 backdrop-blur-md border border-white/10 text-brand-primary shadow-lg transition-all duration-300 hover:scale-105">
-                            <DynamicIcon name={link.icon} className="h-4.5 w-4.5" />
+                        <div>
+                          {/* Auto embedded landing page image preview */}
+                          <LinkPreviewImage 
+                            url={link.url} 
+                            category={link.category} 
+                            alt={link.title} 
+                            onClick={() => handleLaunch(link)} 
+                          >
+                            {/* Floating components inside the image preview */}
+                            <div className="absolute top-2.5 left-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-dark/80 backdrop-blur-md border border-white/10 text-brand-primary shadow-lg transition-all duration-300 hover:scale-105">
+                              <DynamicIcon name={link.icon} className="h-4.5 w-4.5" />
+                            </div>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleFavorite(link.id);
+                              }}
+                              className={`absolute top-2.5 right-2.5 z-20 p-2 rounded-xl backdrop-blur-md border transition-all duration-300 cursor-pointer shadow-lg hover:scale-105 ${
+                                isFav 
+                                  ? 'bg-brand-primary border-brand-primary text-brand-dark' 
+                                  : 'bg-brand-dark/80 border-white/10 text-gray-400 hover:text-white'
+                              }`}
+                              title={isFav ? "Remove from Favorites" : "Mark as Favorite"}
+                            >
+                              <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-current' : ''}`} />
+                            </button>
+                          </LinkPreviewImage>
+
+                          {/* Category Label and Technical Authority */}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                            <span className="font-mono text-[9px] uppercase font-bold text-brand-accent tracking-widest bg-brand-primary/5 px-2.5 py-0.5 rounded-md border border-brand-primary/10">
+                              {link.category}
+                            </span>
+                            {link.postedBy && (
+                              <span className="font-mono text-[8.5px] uppercase font-medium text-gray-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/5" title={`Authorized by ${link.postedBy}`}>
+                                By: {link.postedByRole === 'Super Admin' ? 'Admin' : link.postedBy}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <h3 className="font-display font-bold text-sm text-white mt-3 group-hover:text-brand-primary transition-colors flex items-center gap-1.5 truncate">
+                            {link.title}
+                            {link.isPopular && (
+                              <span className="inline-flex items-center gap-1 text-[8px] px-1.5 py-0.5 rounded bg-brand-primary/20 text-brand-primary font-mono font-bold tracking-tight border border-brand-primary/10">POPULAR</span>
+                            )}
+                          </h3>
+                          
+                          <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 min-h-[36px] whitespace-normal leading-relaxed">
+                            {link.description}
+                          </p>
+                        </div>
+
+                        {/* Bottom stats & Launch Trigger */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-white/5 pt-3 mt-3 gap-2">
+                          <div className="flex items-center gap-1.5 text-[10px] font-mono text-gray-500">
+                            <Activity className="h-3 w-3 text-brand-primary" />
+                            <span>{link.clickCount.toLocaleString()} launches</span>
                           </div>
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleFavorite(link.id);
-                            }}
-                            className={`absolute top-2.5 right-2.5 z-20 p-2 rounded-xl backdrop-blur-md border transition-all duration-300 cursor-pointer shadow-lg hover:scale-105 ${
-                              isFav 
-                                ? 'bg-brand-primary border-brand-primary text-brand-dark' 
-                                : 'bg-brand-dark/80 border-white/10 text-gray-400 hover:text-white'
-                            }`}
-                            title={isFav ? "Remove from Favorites" : "Mark as Favorite"}
-                          >
-                            <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-current' : ''}`} />
-                          </button>
-                        </LinkPreviewImage>
-
-                        {/* Category Label */}
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          <span className="font-mono text-[8px] uppercase font-semibold text-brand-accent tracking-widest bg-brand-primary/5 px-2 py-0.5 rounded-full border border-brand-primary/10">
-                            {link.category}
-                          </span>
-                          {link.postedBy && (
-                            <span className="font-mono text-[8px] uppercase font-medium text-gray-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5" title={`Authorized by ${link.postedBy}`}>
-                              By: {link.postedByRole === 'Super Admin' ? 'Admin' : link.postedBy}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 self-end">
+                            <button
+                              onClick={() => handleLaunch(link)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-brand-dark border border-brand-primary/20 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold font-mono cursor-pointer"
+                              title="Launch website directly in another browser tab"
+                            >
+                              Quick Launch <ArrowRight className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
-                        
-                        <h3 className="font-display font-bold text-sm text-white mt-2 group-hover:text-brand-primary transition-colors flex items-center gap-1.5 truncate">
-                          {link.title}
-                          {link.isPopular && (
-                            <span className="inline-flex items-center gap-1 text-[8px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 font-mono font-medium tracking-tight">POPULAR</span>
-                          )}
-                        </h3>
-                        
-                        <p className="text-[11px] text-gray-400 mt-1 line-clamp-2 min-h-[32px] whitespace-normal">
-                          {link.description}
-                        </p>
-                      </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
 
-                      {/* Bottom stats & Launch Trigger */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-white/5 pt-3 mt-3 gap-2">
-                        <div className="flex items-center gap-1 text-[10px] font-mono text-gray-500">
-                          <Activity className="h-3 w-3 text-brand-primary" />
-                          <span>{link.clickCount.toLocaleString()} launches</span>
-                        </div>
+              {/* Slider timeline & arrow controls */}
+              <div className="flex items-center gap-3 bg-brand-surface/10 px-4 py-2.5 rounded-xl border border-white/5 backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel('left')}
+                  disabled={!canScrollLeft}
+                  className={`p-2 rounded-lg border transition-all duration-300 ${
+                    canScrollLeft 
+                      ? 'bg-white/5 border-white/10 text-white hover:bg-brand-primary hover:text-brand-dark hover:border-brand-primary active:scale-95 cursor-pointer' 
+                      : 'bg-white/0 border-white/0 text-gray-600 lg:hover:bg-white/5 hover:text-gray-500 cursor-not-allowed'
+                  }`}
+                  title="Scroll Left"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                
+                {/* Cyberpunk progress line tracker */}
+                <div className="flex-1 h-[2px] bg-white/5 rounded-full overflow-hidden relative">
+                  <div 
+                    className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-brand-accent to-brand-primary rounded-full transition-all duration-200"
+                    style={{ width: `${Math.min(100, Math.max(8, scrollProgress))}%` }}
+                  />
+                </div>
 
-                        <div className="flex items-center gap-1.5 self-end">
-                          <button
-                            onClick={() => handleLaunch(link)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-brand-dark border border-brand-primary/20 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold font-mono cursor-pointer"
-                            title="Launch website directly in another browser tab"
-                          >
-                            Quick Launch <ArrowRight className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                <div className="font-mono text-[9px] text-gray-400 uppercase tracking-widest select-none">
+                  Track progress
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel('right')}
+                  disabled={!canScrollRight}
+                  className={`p-2 rounded-lg border transition-all duration-300 ${
+                    canScrollRight
+                      ? 'bg-white/5 border-white/10 text-white hover:bg-brand-primary hover:text-brand-dark hover:border-brand-primary active:scale-95 cursor-pointer'
+                      : 'bg-white/0 border-white/0 text-gray-600 lg:hover:bg-white/5 hover:text-gray-500 cursor-not-allowed'
+                  }`}
+                  title="Scroll Right"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 py-2">
-              <AnimatePresence>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 py-2">
+              <AnimatePresence mode="popLayout">
                 {filteredLinks.map((link) => {
                   const isFav = favorites.includes(link.id);
                   return (
                     <motion.div
                       layout
                       key={link.id}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                      className="glass-panel glass-panel-hover rounded-2xl p-5 flex flex-col justify-between relative group overflow-hidden text-left"
+                      initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -15 }}
+                      transition={{ duration: 0.35, ease: "easeOut" }}
+                      className="glass-panel group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-brand-surface/20 p-5 text-left transition-all duration-500 select-none hover:border-brand-primary/25 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_20px_rgba(255,199,44,0.06)]"
                     >
-                      {/* Glowing highlight indicator */}
-                      <div className="absolute top-0 left-0 w-1 h-full bg-brand-primary transform -translate-x-1 group-hover:translate-x-0 transition-transform duration-300" />
+                      {/* Top border glowing neon transition */}
+                      <div className="absolute top-0 right-0 left-0 h-[1.5px] bg-gradient-to-r from-transparent via-brand-primary/40 to-transparent opacity-50 group-hover:via-brand-primary group-hover:opacity-100 transition-all duration-500" />
+                      
+                      {/* Glowing vertical left edge overlay */}
+                      <div className="absolute top-0 bottom-0 left-0 w-[2px] bg-brand-primary scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-300" />
 
                       <div>
                         {/* Auto embedded landing page image preview */}
@@ -499,33 +668,33 @@ export default function LinkHub({
                           </button>
                         </LinkPreviewImage>
 
-                        {/* Category Label */}
+                        {/* Category Label and Technical Authority */}
                         <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          <span className="font-mono text-[8px] uppercase font-semibold text-brand-accent tracking-widest bg-brand-primary/5 px-2 py-0.5 rounded-full border border-brand-primary/10">
+                          <span className="font-mono text-[9px] uppercase font-bold text-brand-accent tracking-widest bg-brand-primary/5 px-2.5 py-0.5 rounded-md border border-brand-primary/10">
                             {link.category}
                           </span>
                           {link.postedBy && (
-                            <span className="font-mono text-[8px] uppercase font-medium text-gray-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5" title={`Authorized by ${link.postedBy}`}>
+                            <span className="font-mono text-[8.5px] uppercase font-medium text-gray-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/5" title={`Authorized by ${link.postedBy}`}>
                               By: {link.postedByRole === 'Super Admin' ? 'Admin' : link.postedBy}
                             </span>
                           )}
                         </div>
                         
-                        <h3 className="font-display font-bold text-sm text-white mt-2 group-hover:text-brand-primary transition-colors flex items-center gap-1.5 truncate">
+                        <h3 className="font-display font-bold text-sm text-white mt-3 group-hover:text-brand-primary transition-colors flex items-center gap-1.5 truncate">
                           {link.title}
                           {link.isPopular && (
-                            <span className="inline-flex items-center gap-1 text-[8px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 font-mono font-medium tracking-tight">POPULAR</span>
+                            <span className="inline-flex items-center gap-1 text-[8px] px-1.5 py-0.5 rounded bg-brand-primary/20 text-brand-primary font-mono font-bold tracking-tight border border-brand-primary/10">POPULAR</span>
                           )}
                         </h3>
                         
-                        <p className="text-[11px] text-gray-400 mt-1 line-clamp-2 min-h-[32px] whitespace-normal">
+                        <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 min-h-[36px] whitespace-normal leading-relaxed">
                           {link.description}
                         </p>
                       </div>
 
                       {/* Bottom stats & Launch Trigger */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-white/5 pt-3 mt-3 gap-2">
-                        <div className="flex items-center gap-1 text-[10px] font-mono text-gray-500">
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-gray-500">
                           <Activity className="h-3 w-3 text-brand-primary" />
                           <span>{link.clickCount.toLocaleString()} launches</span>
                         </div>
@@ -533,7 +702,7 @@ export default function LinkHub({
                         <div className="flex items-center gap-1.5 self-end">
                           <button
                             onClick={() => handleLaunch(link)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-brand-dark border border-brand-primary/20 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold font-mono cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-brand-dark border border-brand-primary/20 hover:border-brand-primary transition-all duration-300 text-[10px] font-semibold font-mono cursor-pointer"
                             title="Launch website directly in another browser tab"
                           >
                             Quick Launch <ArrowRight className="h-3 w-3" />
@@ -550,7 +719,7 @@ export default function LinkHub({
           {/* Helpful interactive instruction tip */}
           <p className="text-[10px] text-gray-500 font-mono flex items-center justify-center gap-1.5 select-none text-center">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-primary animate-ping" />
-            <span>Hover slide track to pause, drag/swipe or use <strong className="text-brand-primary">Quick Launch</strong> parameters.</span>
+            <span>Hover matrix components for active glow, select custom category nodes, or interact via <strong className="text-brand-primary">Quick Launch</strong> parameters.</span>
           </p>
         </div>
 

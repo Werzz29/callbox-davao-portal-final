@@ -62,19 +62,19 @@ export default function NetworkBackground() {
         // Super smooth slow floating vectors
         this.vx = (Math.random() - 0.5) * 0.45;
         this.vy = (Math.random() - 0.5) * 0.45;
-        this.size = Math.random() * 2.2 + 1;
+        this.size = Math.random() * 2.8 + 1.2;
         
         // Brand themes (mix of yellow-gold, white, and subtle corporate brand dark blue accent)
         const rand = Math.random();
         if (rand > 0.8) {
           this.color = '255, 199, 44'; // Gold #FFC72C
-          this.alpha = Math.random() * 0.5 + 0.3;
+          this.alpha = Math.random() * 0.6 + 0.4;
         } else if (rand > 0.6) {
           this.color = '255, 184, 0'; // Amber #FFB800
-          this.alpha = Math.random() * 0.4 + 0.3;
+          this.alpha = Math.random() * 0.5 + 0.4;
         } else {
           this.color = '255, 255, 255'; // Clean White
-          this.alpha = Math.random() * 0.3 + 0.15;
+          this.alpha = Math.random() * 0.4 + 0.25;
         }
         this.pulseSpeed = Math.random() * 0.01 + 0.005;
       }
@@ -101,7 +101,7 @@ export default function NetworkBackground() {
 
         // Ambient opacity breathing pulse
         this.alpha += this.pulseSpeed;
-        if (this.alpha > 0.8 || this.alpha < 0.1) {
+        if (this.alpha > 0.95 || this.alpha < 0.2) {
           this.pulseSpeed *= -1;
         }
       }
@@ -110,9 +110,9 @@ export default function NetworkBackground() {
         if (!ctx) return;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${this.color}, ${Math.max(0.05, Math.min(1, this.alpha))})`;
-        ctx.shadowBlur = this.color.includes('255, 199') ? 8 : 0;
-        ctx.shadowColor = 'rgba(255, 199, 44, 0.4)';
+        ctx.fillStyle = `rgba(${this.color}, ${Math.max(0.1, Math.min(1, this.alpha))})`;
+        ctx.shadowBlur = this.color.includes('255, 199') ? 10 : 0;
+        ctx.shadowColor = 'rgba(255, 199, 44, 0.5)';
         ctx.fill();
         ctx.shadowBlur = 0; // reset
       }
@@ -120,8 +120,8 @@ export default function NetworkBackground() {
 
     const initParticles = () => {
       particles = [];
-      // Adjust density based on screenspace
-      const particleCount = Math.min(75, Math.floor((width * height) / 18000));
+      // Adjust density based on screenspace - increased max count and density
+      const particleCount = Math.min(110, Math.floor((width * height) / 12000));
       for (let i = 0; i < particleCount; i++) {
         particles.push(new Particle());
       }
@@ -143,20 +143,20 @@ export default function NetworkBackground() {
           const dy = particles[i].y - particles[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          // Render link line within distance threshold
-          if (dist < 155) {
+          // Render link line within distance threshold (increased from 155 to 175)
+          if (dist < 175) {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
             
-            // Link color fades out exponentially with distance
-            const alpha = (1 - dist / 155) * 0.14;
+            // Link color fades out exponentially with distance (increased bright multiplier from 0.14 to 0.26)
+            const alpha = (1 - dist / 175) * 0.26;
             const strokeColor = particles[i].color.includes('255, 199') || particles[j].color.includes('255, 199')
               ? 'rgba(255, 199, 44,'
               : 'rgba(255, 255, 255,';
               
             ctx.strokeStyle = strokeColor + alpha + ')';
-            ctx.lineWidth = 0.55;
+            ctx.lineWidth = 0.65;
             ctx.stroke();
           }
         }
@@ -170,9 +170,9 @@ export default function NetworkBackground() {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(mouse.x, mouse.y);
-            const alpha = (1 - dist / mouse.radius) * 0.18;
+            const alpha = (1 - dist / mouse.radius) * 0.35;
             ctx.strokeStyle = `rgba(255, 199, 44, ${alpha})`;
-            ctx.lineWidth = 0.75;
+            ctx.lineWidth = 1.1;
             ctx.stroke();
           }
         }
@@ -195,7 +195,7 @@ export default function NetworkBackground() {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 w-full h-full pointer-events-none select-none z-0"
-      style={{ mixBlendMode: 'screen', opacity: 0.5 }}
+      style={{ mixBlendMode: 'screen', opacity: 0.8 }}
       id="portal-ambient-network-canvas"
     />
   );

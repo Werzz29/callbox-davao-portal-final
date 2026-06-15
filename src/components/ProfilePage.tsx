@@ -142,54 +142,77 @@ export default function ProfilePage({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Profile Card Left */}
-        <div className="glass-panel rounded-3xl p-6 border-t-4 border-brand-primary h-fit">
-          <div className="text-center relative">
-            <div className="relative inline-block">
-              {currentUser.avatarUrl ? (
-                <img 
-                  src={currentUser.avatarUrl} 
-                  alt={currentUser.name} 
-                  className="h-24 w-24 rounded-3xl object-cover border-2 border-brand-primary gold-glow shadow-md mx-auto bg-[#111827]"
-                  referrerPolicy="no-referrer"
-                  id="profile-avatar-image"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
-              ) : (
-                <div 
-                  className="h-24 w-24 rounded-3xl bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/30 flex items-center justify-center text-brand-primary gold-glow shadow-md mx-auto overflow-hidden p-1.5"
-                  id="profile-avatar-badge"
-                >
-                  <DefaultAvatar gender={gender} name={currentUser.name} className="h-full w-full object-contain" />
-                </div>
-              )}
-              <span className="absolute bottom-1.5 right-1.5 h-4 w-4 rounded-full bg-emerald-500 border-2 border-brand-dark animate-pulse" title="Active on shift" />
+        {/* Profile Card Left & Activity Logs column */}
+        <div className="space-y-6">
+          <div className="glass-panel rounded-3xl p-6 border-t-4 border-brand-primary h-fit">
+            <div className="text-center relative">
+              <div className="relative inline-block">
+                {currentUser.avatarUrl ? (
+                  <img 
+                    src={currentUser.avatarUrl} 
+                    alt={currentUser.name} 
+                    className="h-24 w-24 rounded-3xl object-cover border-2 border-brand-primary gold-glow shadow-md mx-auto bg-[#111827]"
+                    referrerPolicy="no-referrer"
+                    id="profile-avatar-image"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div 
+                    className="h-24 w-24 rounded-3xl bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/30 flex items-center justify-center text-brand-primary gold-glow shadow-md mx-auto overflow-hidden p-1.5"
+                    id="profile-avatar-badge"
+                  >
+                    <DefaultAvatar gender={gender} name={currentUser.name} className="h-full w-full object-contain" />
+                  </div>
+                )}
+                <span className="absolute bottom-1.5 right-1.5 h-4 w-4 rounded-full bg-emerald-500 border-2 border-brand-dark animate-pulse" title="Active on shift" />
+              </div>
+
+              <h3 className="font-display font-bold text-lg text-white mt-3.5 tracking-snug">{currentUser.name}</h3>
+              <p className="text-xs font-mono text-brand-primary font-medium">{currentUser.position}</p>
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-mono mt-1">{currentUser.department} Section</p>
             </div>
 
-            <h3 className="font-display font-bold text-lg text-white mt-3.5 tracking-snug">{currentUser.name}</h3>
-            <p className="text-xs font-mono text-brand-primary font-medium">{currentUser.position}</p>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-mono mt-1">{currentUser.department} Section</p>
+            {/* Quick specs lists */}
+            <div className="border-t border-b border-white/5 py-4 my-6 space-y-3 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Security Clearance:</span>
+                <span className="inline-flex px-1.5 py-0.2 rounded bg-yellow-500/10 text-brand-primary border border-brand-primary/10 text-[10px] font-bold">
+                  {currentUser.role}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Committed Shift:</span>
+                <span className="text-gray-300 font-semibold">APAC Evening</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Joined Date:</span>
+                <span className="text-gray-300">
+                  {currentUser.joinedDate}
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Quick specs lists */}
-          <div className="border-t border-b border-white/5 py-4 my-6 space-y-3 font-mono text-xs">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Security Clearance:</span>
-              <span className="inline-flex px-1.5 py-0.2 rounded bg-yellow-500/10 text-brand-primary border border-brand-primary/10 text-[10px] font-bold">
-                {currentUser.role}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Committed Shift:</span>
-              <span className="text-gray-300 font-semibold">APAC Evening</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Joined Date:</span>
-              <span className="text-gray-300">
-                {currentUser.joinedDate}
-              </span>
+          {/* Activity Logs stream on the left side */}
+          <div className="glass-panel rounded-3xl p-6 border border-white/5 hover:border-brand-primary/20 transition-all duration-300">
+            <h3 className="font-display font-semibold text-xs tracking-wider uppercase text-gray-400 mb-4 flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-brand-primary" /> Portal Session Activity History
+            </h3>
+
+            <div className="space-y-4">
+              {activityLogs.map((act) => (
+                <div key={act.id} className="flex justify-between items-start text-xs border-b border-white/2 pb-3 mb-3 last:border-0 last:pb-0">
+                  <div className="flex gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-primary mt-1.5 animate-pulse shrink-0" />
+                    <div>
+                      <p className="text-gray-300 font-medium">{act.activity}</p>
+                      <p className="text-[10px] text-gray-500 font-mono mt-0.5">{act.timestamp}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -582,28 +605,6 @@ export default function ProfilePage({
             </form>
           </div>
 
-
-
-          {/* Activity Logs stream */}
-          <div className="glass-panel rounded-3xl p-6">
-            <h3 className="font-display font-semibold text-xs tracking-wider uppercase text-gray-400 mb-4 flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-brand-primary" /> Portal Session Activity History
-            </h3>
-
-            <div className="space-y-4">
-              {activityLogs.map((act) => (
-                <div key={act.id} className="flex justify-between items-start text-xs border-b border-white/2 pb-3 mb-3 last:border-0 last:pb-0">
-                  <div className="flex gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-primary mt-1.5 animate-pulse shrink-0" />
-                    <div>
-                      <p className="text-gray-300 font-medium">{act.activity}</p>
-                      <p className="text-[10px] text-gray-500 font-mono mt-0.5">{act.timestamp}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
 
         </div>
 

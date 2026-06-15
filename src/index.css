@@ -35,6 +35,12 @@
   background: #FFC72C;
 }
 
+/* Ensure no horizontal layout overflow on body due to breakouts */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 /* Glassmorphism custom classes */
 .glass-panel {
   background: rgba(255, 255, 255, 0.04);
@@ -101,6 +107,20 @@
 
 .animate-float-gold {
   animation: delicateFloat 5s ease-in-out infinite;
+}
+
+/* Shimmer animation for skeleton states */
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: skeleton-shimmer 1.8s infinite linear;
 }
 
 /* Customized global button active actions and focus indicators */
