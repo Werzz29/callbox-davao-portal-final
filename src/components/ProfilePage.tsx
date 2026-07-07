@@ -69,6 +69,18 @@ export default function ProfilePage({
   const [resetRequestSuccess, setResetRequestSuccess] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [isPosDropdownOpen, setIsPosDropdownOpen] = useState(false);
+  const [isCapsLockOn, setIsCapsLockOn] = useState(false);
+
+  const checkCapsLock = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    setIsCapsLockOn(e.getModifierState('CapsLock'));
+  };
+
+  const checkCapsLockFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    const nativeEvent = e.nativeEvent as any;
+    if (nativeEvent && typeof nativeEvent.getModifierState === 'function') {
+      setIsCapsLockOn(nativeEvent.getModifierState('CapsLock'));
+    }
+  };
 
   // File loading capabilities
   const handleFileChange = (file: File) => {
@@ -560,6 +572,10 @@ export default function ProfilePage({
                       type="password"
                       value={desiredPassword}
                       onChange={(e) => setDesiredPassword(e.target.value)}
+                      onKeyDown={checkCapsLock}
+                      onKeyUp={checkCapsLock}
+                      onFocus={checkCapsLockFocus}
+                      onBlur={() => setIsCapsLockOn(false)}
                       placeholder="Specify desired passcode Phrase"
                       className="w-full bg-brand-dark border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white focus:outline-none focus:border-brand-primary font-mono text-xs"
                       title="Desired new password phrase"
@@ -586,6 +602,12 @@ export default function ProfilePage({
                     <RefreshCw className="h-3.5 w-3.5 shrink-0" /> Request Reset
                   </button>
                 </div>
+                {isCapsLockOn && (
+                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-mono rounded-lg flex items-center gap-1.5 animate-pulse">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>Warning: CAPS LOCK is active</span>
+                  </div>
+                )}
                 {resetRequestSuccess && (
                   <div className="mt-2.5 p-2 bg-yellow-500/10 border border-yellow-500/20 text-brand-primary text-[10px] font-mono rounded-lg flex items-center gap-1.5">
                     <CheckCircle className="h-4 w-4 shrink-0" />

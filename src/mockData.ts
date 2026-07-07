@@ -113,7 +113,8 @@ export const mockNotifications: SystemNotification[] = [
     message: 'VOIP server updates schedule for tomorrow at 06:00 UTC.',
     type: 'it',
     timestamp: '2 hours ago',
-    isRead: false
+    isRead: false,
+    targetTab: 'links'
   },
   {
     id: 'notif-2',
@@ -121,7 +122,8 @@ export const mockNotifications: SystemNotification[] = [
     message: 'Werzkie Tim shared branch-wide success logs.',
     type: 'announcement',
     timestamp: '1 day ago',
-    isRead: false
+    isRead: false,
+    targetTab: 'bulletins'
   },
   {
     id: 'notif-3',
@@ -129,7 +131,8 @@ export const mockNotifications: SystemNotification[] = [
     message: 'Medical card signup ends shortly. Download registration templates in the resources library.',
     type: 'hr',
     timestamp: '2 days ago',
-    isRead: true
+    isRead: true,
+    targetTab: 'resources'
   }
 ];
 

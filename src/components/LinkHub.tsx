@@ -737,7 +737,7 @@ export default function LinkHub({
                 <p>Star items to bookmark on your quick launch dock.</p>
               </div>
             ) : (
-              <ul className="space-y-2.5">
+              <ul className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-brand-primary/10 hover:scrollbar-thumb-brand-primary/35">
                 {links.filter(l => favorites.includes(l.id)).map(link => (
                   <li key={link.id}>
                     <button
@@ -770,7 +770,7 @@ export default function LinkHub({
             {recentLaunches.length === 0 ? (
               <p className="text-xs text-gray-500 text-center py-5 border border-dashed border-white/5 rounded-xl font-mono">No visited links recorded yet</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-brand-primary/10 hover:scrollbar-thumb-brand-primary/35">
                 {recentLaunches.map(id => {
                   const item = links.find(l => l.id === id);
                   if (!item) return null;

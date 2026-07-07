@@ -9,6 +9,7 @@ import {
   Mail, AlertCircle, Fingerprint, Sparkles, UserCheck, KeyRound, User, ArrowLeft, Eye, EyeOff, Search, ShieldCheck, CheckCircle2, RefreshCw
 } from 'lucide-react';
 import { Employee } from '../types';
+import CallboxLogo from './CallboxLogo';
 import DefaultAvatar from './DefaultAvatar';
 
 interface LoginScreenProps {
@@ -27,6 +28,16 @@ export default function LoginScreen({
   onRequestPasscodeReset
 }: LoginScreenProps) {
   const [selectedProfile, setSelectedProfile] = useState<'Employee' | 'Admin' | 'Inactive'>('Employee');
+  const [direction, setDirection] = useState<number>(0);
+
+  const handleSwitchProfile = (profile: 'Employee' | 'Admin' | 'Inactive') => {
+    const profileOrder = ['Employee', 'Admin', 'Inactive'];
+    const prevIdx = profileOrder.indexOf(selectedProfile);
+    const nextIdx = profileOrder.indexOf(profile);
+    setDirection(nextIdx > prevIdx ? 1 : -1);
+    setSelectedProfile(profile);
+  };
+
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [password, setPassword] = useState('');
@@ -41,6 +52,20 @@ export default function LoginScreen({
   const [newPasscode, setNewPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
   const [showNewPasscode, setShowNewPasscode] = useState(false);
+
+  // Caps Lock detection state and check handlers
+  const [isCapsLockOn, setIsCapsLockOn] = useState(false);
+
+  const checkCapsLock = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    setIsCapsLockOn(e.getModifierState('CapsLock'));
+  };
+
+  const checkCapsLockFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    const nativeEvent = e.nativeEvent as any;
+    if (nativeEvent && typeof nativeEvent.getModifierState === 'function') {
+      setIsCapsLockOn(nativeEvent.getModifierState('CapsLock'));
+    }
+  };
 
   // States for resetting forgotten passcode
   const [isResettingPasscode, setIsResettingPasscode] = useState(false);
@@ -74,14 +99,27 @@ export default function LoginScreen({
 
   // Sync inputs dynamically on tab changes for rapid testing
   React.useEffect(() => {
-    setUsernameOrEmail('');
-    setSelectedEmployee(null);
+    if (selectedProfile === 'Admin') {
+      // Find the primary/first admin (Super Admin preferred, then HR)
+      const defaultAdmin = employees.find(emp => emp.role === 'Super Admin') || 
+                           employees.find(emp => emp.role === 'HR');
+      if (defaultAdmin) {
+        setSelectedEmployee(defaultAdmin);
+        setUsernameOrEmail(defaultAdmin.email);
+      } else {
+        setSelectedEmployee(null);
+        setUsernameOrEmail('');
+      }
+    } else {
+      setSelectedEmployee(null);
+      setUsernameOrEmail('');
+    }
     setPassword('');
     setShowPassword(false);
     setErrorMessage('');
     setEmployeeSearch('');
     setSetupSuccessMessage('');
-  }, [selectedProfile]);
+  }, [selectedProfile, employees]);
 
   const playBeep = (freq = 800, duration = 0.15) => {
     try {
@@ -287,6 +325,10 @@ export default function LoginScreen({
       setErrorMessage('Passcode must be at least 4 characters long.');
       return;
     }
+    if (newPasscode.trim() === 'callbox2026') {
+      setErrorMessage('Passcode cannot be the default "callbox2026". Please specify a secure unique custom passcode.');
+      return;
+    }
     if (newPasscode.trim() !== confirmPasscode.trim()) {
       setErrorMessage('Passcodes do not match. Please verify your entries.');
       return;
@@ -401,11 +443,26 @@ export default function LoginScreen({
           isMatch = password.trim() === 'admin123' || password.trim() === 'callboxdavaoadmin';
         }
 
+        // Support 'callbox2026' default reset password
+        if (!isMatch && expectedPassword === 'callbox2026') {
+          isMatch = password.trim() === 'callbox2026';
+        }
+
         if (!isMatch) {
           setErrorMessage(`Clearance mismatch. Passcode for ${lookupUser.role} of ${lookupUser.name} is invalid.`);
           setIsAuthorizing(false);
           return;
         }
+
+        // If the HR/Admin's passcode setup is not complete, or they used the default/reset 'callbox2026' passcode, force setup
+        if (lookupUser.isPasscodeSetupComplete === false || expectedPassword === 'callbox2026' || password.trim() === 'callbox2026') {
+          setSetupPasscodeUser(lookupUser);
+          setNewPasscode('');
+          setConfirmPasscode('');
+          setIsAuthorizing(false);
+          return;
+        }
+
         onLoginSuccess(lookupUser);
         setIsAuthorizing(false);
         return;
@@ -450,8 +507,8 @@ export default function LoginScreen({
         }
 
         // If the user's passcode setup is not complete (newly created CSV or admin passcode reset),
-        // they must configure their own customized passcode first.
-        if (lookupUser.isPasscodeSetupComplete === false) {
+        // or they used the default / reset passcode 'callbox2026', they must configure their own customized passcode first.
+        if (lookupUser.isPasscodeSetupComplete === false || expectedPassword === 'callbox2026' || password.trim() === 'callbox2026') {
           setSetupPasscodeUser(lookupUser);
           setNewPasscode('');
           setConfirmPasscode('');
@@ -471,7 +528,7 @@ export default function LoginScreen({
   };
 
   return (
-    <div className="min-h-screen bg-transparent flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden animate-fade-in" id="portal-login-screen">
+    <div className="flex-1 bg-transparent flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden animate-fade-in" id="portal-login-screen">
       
       {/* Absolute floating ambient backgrounds */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-brand-primary/10 rounded-full blur-[140px] pointer-events-none" />
@@ -494,16 +551,16 @@ export default function LoginScreen({
 
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl relative z-10">
         {/* Core Branding Header */}
-        <div className="text-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/25 text-brand-primary mb-4 gold-glow">
-            <Fingerprint className="h-7 w-7 animate-pulse" />
+        <div className="text-center flex flex-col items-center">
+          <div className="mb-4">
+            <CallboxLogo className="h-12 w-auto text-white filter drop-shadow-[0_0_15px_rgba(255,184,0,0.15)]" caretColor="#FFB800" />
           </div>
           
-          <h1 className="font-display text-3xl font-extrabold tracking-tight text-white mb-1">
-            CALLBOX <span className="text-brand-primary">DAVAO</span>
-          </h1>
-          <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest flex items-center justify-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-brand-primary" /> SecOps Authorized Portal Gateway
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-primary/10 border border-brand-primary/15 rounded-xl text-xs font-mono font-bold text-brand-primary uppercase tracking-widest mb-2 shadow-sm">
+            DAVAO NODE GATEWAY
+          </div>
+          <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest flex items-center justify-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-brand-primary animate-pulse" /> SecOps Authorized Portal Gateway
           </p>
         </div>
       </div>
@@ -551,6 +608,10 @@ export default function LoginScreen({
                       placeholder="At least 4 characters"
                       value={newPasscode}
                       onChange={(e) => setNewPasscode(e.target.value)}
+                      onKeyDown={checkCapsLock}
+                      onKeyUp={checkCapsLock}
+                      onFocus={checkCapsLockFocus}
+                      onBlur={() => setIsCapsLockOn(false)}
                       disabled={isAuthorizing}
                       className="w-full bg-brand-dark/95 border border-white/10 rounded-xl pl-9 pr-9 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
                       title="New passcode input"
@@ -570,12 +631,30 @@ export default function LoginScreen({
                       placeholder="Verify passcode"
                       value={confirmPasscode}
                       onChange={(e) => setConfirmPasscode(e.target.value)}
+                      onKeyDown={checkCapsLock}
+                      onKeyUp={checkCapsLock}
+                      onFocus={checkCapsLockFocus}
+                      onBlur={() => setIsCapsLockOn(false)}
                       disabled={isAuthorizing}
                       className="w-full bg-brand-dark/95 border border-white/10 rounded-xl pl-9 pr-9 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
                       title="Confirm passcode input"
                     />
                   </div>
                 </div>
+
+                <AnimatePresence>
+                  {isCapsLockOn && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="text-amber-400 flex items-center gap-1.5 font-mono text-[10px] bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                      <span>Warning: CAPS LOCK is active</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <div className="flex items-center justify-between text-[10px] font-mono select-none">
                   <button
@@ -637,7 +716,7 @@ export default function LoginScreen({
               <motion.button
                 key={opt.key}
                 type="button"
-                onClick={() => setSelectedProfile(opt.key as any)}
+                onClick={() => handleSwitchProfile(opt.key as any)}
                 whileTap={{ scale: 0.96 }}
                 whileHover={{ scale: 1.015 }}
                 transition={{ type: "spring", stiffness: 450, damping: 24 }}
@@ -697,356 +776,459 @@ export default function LoginScreen({
           )}
 
           {/* Core Login and Preview layout */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch pt-2">
-                     {selectedProfile === 'Employee' ? (
-              <div className="md:col-span-12 flex justify-center py-4 animate-fade-in" id="employee-login-portal-section">
-                
-                {isResettingPasscode && matchedEmployeeForPasscode ? (
-                  <form onSubmit={handleResetPasscodeSubmit} className="w-full max-w-sm space-y-4 text-xs font-sans flex flex-col justify-center animate-fade-in">
-                    <div className="border-b border-white/5 pb-4 text-center">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-primary/10 border border-brand-primary/25 text-brand-primary mb-2 gold-glow">
-                        <RefreshCw className="h-4.5 w-4.5 animate-spin-slow text-brand-primary" />
-                      </div>
-                      <h3 className="font-display font-bold text-sm text-white">Reset Secure Passcode</h3>
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        Verifying identity for <strong className="text-brand-primary">{matchedEmployeeForPasscode.name}</strong>
-                      </p>
-                    </div>
-
-                    {resetError && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-3 text-[10px] font-mono bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl flex items-start gap-2"
-                      >
-                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />
-                        <span>{resetError}</span>
-                      </motion.div>
-                    )}
-                    {resetSuccess ? (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="p-5 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-center space-y-3 w-full"
-                      >
-                        <CheckCircle2 className="h-9 w-9 text-amber-400 mx-auto animate-bounce" />
-                        <h4 className="font-display font-bold text-sm text-amber-300 uppercase tracking-wide">Reset Request Dispatched!</h4>
-                        <p className="text-[10px] text-gray-300 leading-relaxed font-mono">
-                          Your request has been filed in the secure governance ledger. Once the Super Admin authorizes it, your passcode will restore to the default <strong className="text-brand-primary">callbox2026</strong>.
-                        </p>
-                      </motion.div>
-                    ) : (
-                      <>
-                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 space-y-3 text-center w-full">
-                          <p className="text-[11px] text-gray-300 leading-relaxed">
-                            For security purposes, you can immediately request the Super Admin to reset your workspace passcode.
-                          </p>
-                          <div className="p-3 bg-brand-dark/50 border border-white/5 rounded-xl font-mono text-[10px] text-left text-gray-400 space-y-1">
-                            <div>• Target: <span className="text-white font-semibold">{matchedEmployeeForPasscode.name}</span></div>
-                            <div>• Request Type: <span className="text-amber-400 font-semibold font-mono uppercase text-[9px] tracking-wider">Passcode Reset</span></div>
-                            <div>• Action Outcome: <span className="text-brand-primary font-semibold">Revert to default (callbox2026)</span></div>
-                          </div>
-                          <p className="text-[9px] text-[#fbbf24]/95 font-mono italic leading-relaxed">
-                            *Upon approval, you will be required to configure a secure custom passcode on your next login attempt.
-                          </p>
+          <div className="relative overflow-hidden w-full pt-2 min-h-[270px]" id="portal-sliding-container">
+            <AnimatePresence mode="wait" initial={false} custom={direction}>
+              {selectedProfile === 'Employee' ? (
+                <motion.div
+                  key="Employee"
+                  custom={direction}
+                  initial={{ x: direction > 0 ? 120 : -120, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: direction < 0 ? 120 : -120, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                  className="w-full flex justify-center py-2"
+                  id="employee-login-portal-section"
+                >
+                  {isResettingPasscode && matchedEmployeeForPasscode ? (
+                    <form onSubmit={handleResetPasscodeSubmit} className="w-full max-w-sm space-y-4 text-xs font-sans flex flex-col justify-center animate-fade-in">
+                      <div className="border-b border-white/5 pb-4 text-center">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-primary/10 border border-brand-primary/25 text-brand-primary mb-2 gold-glow">
+                          <RefreshCw className="h-4.5 w-4.5 animate-spin-slow text-brand-primary" />
                         </div>
-
-                        <div className="grid grid-cols-2 gap-3 pt-2 w-full">
-                          <motion.button
-                            type="button"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => {
-                              setIsResettingPasscode(false);
-                              setResetError('');
-                              setResetVerificationId('');
-                              setResetNewPasscode('');
-                              setResetConfirmPasscode('');
-                            }}
-                            className="py-3 bg-white/5 hover:bg-white/10 text-gray-300 font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl transition-all cursor-pointer border border-white/5"
-                          >
-                            Cancel
-                          </motion.button>
-                          <motion.button
-                            type="submit"
-                            disabled={isAuthorizing}
-                            whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
-                            whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
-                            className="py-3 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer"
-                          >
-                            {isAuthorizing ? (
-                              <div className="h-3 w-3 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              'Send Request'
-                            )}
-                          </motion.button>
-                        </div>
-                      </>
-                    )}
-                  </form>
-                ) : (
-                  <form className="w-full max-w-sm space-y-4 text-xs font-sans flex flex-col justify-center animate-fade-in" onSubmit={handleLoginSubmit}>
-                    <div>
-                      <label className="block text-gray-400 font-medium mb-1.5 font-mono uppercase tracking-wider text-[10px]">
-                        Office Email or Username
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-1.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 translate-x-2" />
-                        <input
-                          type="text"
-                          required
-                          placeholder="Your Company Email"
-                          value={usernameOrEmail}
-                          onChange={(e) => {
-                            setUsernameOrEmail(e.target.value);
-                            setSelectedEmployee(null);
-                            setSetupSuccessMessage('');
-                          }}
-                          disabled={isAuthorizing}
-                          className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-3.5 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
-                          title="User identity parameter"
-                        />
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-500 font-mono">
-                        <span>Required Domain: <strong className="text-brand-primary">@callboxinc.com</strong></span>
-                        <span>Identity Sync Active</span>
-                      </div>
-                    </div>
-
-                    {/* Notice for Promoted Admin/HR accounts trying to use standard employee portal */}
-                    {selectedProfile === 'Employee' && matchedPromotedUser && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl text-center space-y-3 w-full"
-                      >
-                        <ShieldCheck className="h-7 w-7 text-brand-primary mx-auto animate-pulse" />
-                        <h4 className="font-display font-bold text-[11px] text-brand-primary uppercase tracking-wider">
-                          Elevated Clearance Detected
-                        </h4>
-                        <p className="text-[10px] text-gray-300 leading-relaxed font-mono">
-                          Account <strong className="text-white">{matchedPromotedUser.name}</strong> is promoted to <span className="text-brand-primary font-bold uppercase">[{matchedPromotedUser.role}]</span> clearance.
+                        <h3 className="font-display font-bold text-sm text-white">Reset Secure Passcode</h3>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Verifying identity for <strong className="text-brand-primary">{matchedEmployeeForPasscode.name}</strong>
                         </p>
-                        <p className="text-[9px] text-gray-400 font-sans leading-relaxed">
-                          You do not need to log in via the Employee Portal. Please use the secure administrative panel instead.
-                        </p>
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            setSelectedProfile('Admin');
-                            setSelectedEmployee(matchedPromotedUser);
-                            setUsernameOrEmail(matchedPromotedUser.email);
-                          }}
-                          className="w-full py-2 bg-brand-primary hover:bg-brand-secondary text-brand-dark font-mono font-bold uppercase tracking-wider text-[9px] rounded-xl transition-all cursor-pointer border-none"
+                      </div>
+
+                      {resetError && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-3 text-[10px] font-mono bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl flex items-start gap-2"
                         >
-                          Switch to Admin Access
-                        </motion.button>
-                      </motion.div>
-                    )}
+                          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />
+                          <span>{resetError}</span>
+                        </motion.div>
+                      )}
+                      {resetSuccess ? (
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="p-5 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-center space-y-3 w-full"
+                        >
+                          <CheckCircle2 className="h-9 w-9 text-amber-400 mx-auto animate-bounce" />
+                          <h4 className="font-display font-bold text-sm text-amber-300 uppercase tracking-wide">Reset Request Dispatched!</h4>
+                          <p className="text-[10px] text-gray-300 leading-relaxed font-mono">
+                            Your request has been filed in the secure governance ledger. Once the Super Admin authorizes it, your passcode will restore to the default <strong className="text-brand-primary">callbox2026</strong>.
+                          </p>
+                        </motion.div>
+                      ) : (
+                        <>
+                          <div className="bg-white/5 border border-white/5 rounded-2xl p-4 space-y-3 text-center w-full">
+                            <p className="text-[11px] text-gray-300 leading-relaxed">
+                              For security purposes, you can immediately request the Super Admin to reset your workspace passcode.
+                            </p>
+                            <div className="p-3 bg-brand-dark/50 border border-white/5 rounded-xl font-mono text-[10px] text-left text-gray-400 space-y-1">
+                              <div>• Target: <span className="text-white font-semibold">{matchedEmployeeForPasscode.name}</span></div>
+                              <div>• Request Type: <span className="text-amber-400 font-semibold font-mono uppercase text-[9px] tracking-wider">Passcode Reset</span></div>
+                              <div>• Action Outcome: <span className="text-brand-primary font-semibold">Revert to default (callbox2026)</span></div>
+                            </div>
+                            <p className="text-[9px] text-[#fbbf24]/95 font-mono italic leading-relaxed">
+                              *Upon approval, you will be required to configure a secure custom passcode on your next login attempt.
+                            </p>
+                          </div>
 
-                    {/* Password Input for Employees (Hidden until email/identity matches a user in the roster) */}
-                    {matchedEmployeeForPasscode ? (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        transition={{ duration: 0.25 }}
-                        className="space-y-4 pt-1 overflow-hidden"
-                      >
-                        <div>
-                          <label className="block text-gray-400 font-medium mb-1.5 font-mono uppercase tracking-wider text-[10px]">
-                            Access Passcode / Password
-                          </label>
-                          <div className="relative">
-                            <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                            <input
-                              type={showPassword ? 'text' : 'password'}
-                              required
-                              placeholder="Enter passcode"
-                              value={password}
-                              onChange={(e) => setPassword(e.target.value)}
-                              disabled={isAuthorizing}
-                              className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
-                              title="Employee password field"
-                            />
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white transition-colors cursor-pointer mr-1"
-                              title={showPassword ? 'Hide password' : 'Show password'}
-                            >
-                              {showPassword ? (
-                                <EyeOff className="h-3.5 w-3.5" />
-                              ) : (
-                                <Eye className="h-3.5 w-3.5" />
-                              )}
-                            </motion.button>
-                          </div>
-                          <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-500 font-mono">
-                            <span>Secure validation enabled</span>
-                            <span>Default Passcode: <strong className="text-brand-primary">callbox2026</strong></span>
-                          </div>
-                          
-                          {/* Forgot Passcode Button Trigger */}
-                          <div className="mt-2 text-right">
+                          <div className="grid grid-cols-2 gap-3 pt-2 w-full">
                             <motion.button
                               type="button"
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.95 }}
                               onClick={() => {
-                                setIsResettingPasscode(true);
+                                setIsResettingPasscode(false);
                                 setResetError('');
                                 setResetVerificationId('');
                                 setResetNewPasscode('');
                                 setResetConfirmPasscode('');
                               }}
-                              className="text-brand-accent hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0 inline-flex items-center gap-1 text-[10px] font-mono leading-none font-semibold hover:underline"
-                              title="Recover forgotten passcode"
+                              className="py-3 bg-white/5 hover:bg-white/10 text-gray-300 font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl transition-all cursor-pointer border border-white/5"
                             >
-                              Forgot Passcode?
+                              Cancel
+                            </motion.button>
+                            <motion.button
+                              type="submit"
+                              disabled={isAuthorizing}
+                              whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
+                              whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
+                              className="py-3 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer"
+                            >
+                              {isAuthorizing ? (
+                                <div className="h-3 w-3 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                'Send Request'
+                              )}
                             </motion.button>
                           </div>
+                        </>
+                      )}
+                    </form>
+                  ) : (
+                    <form className="w-full max-w-sm space-y-4 text-xs font-sans flex flex-col justify-center animate-fade-in" onSubmit={handleLoginSubmit}>
+                      <div>
+                        <label className="block text-gray-400 font-medium mb-1.5 font-mono uppercase tracking-wider text-[10px]">
+                          Office Email or Username
+                        </label>
+                        <div className="relative">
+                          <Mail className="absolute left-1.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 translate-x-2" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="Your Company Email"
+                            value={usernameOrEmail}
+                            onChange={(e) => {
+                              setUsernameOrEmail(e.target.value);
+                              setSelectedEmployee(null);
+                              setSetupSuccessMessage('');
+                            }}
+                            onKeyDown={checkCapsLock}
+                            onKeyUp={checkCapsLock}
+                            onFocus={checkCapsLockFocus}
+                            onBlur={() => setIsCapsLockOn(false)}
+                            disabled={isAuthorizing}
+                            className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-3.5 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
+                            title="User identity parameter"
+                          />
                         </div>
-                      </motion.div>
-                    ) : null}
+                        <AnimatePresence>
+                          {isCapsLockOn && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="text-amber-400 mt-1.5 flex items-center gap-1.5 font-mono text-[10px] bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl animate-pulse"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+                              <span>Warning: CAPS LOCK is active</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-500 font-mono">
+                          <span>Required Domain: <strong className="text-brand-primary">@callboxinc.com</strong></span>
+                          <span>Identity Sync Active</span>
+                        </div>
+                      </div>
+
+                      {/* Notice for Promoted Admin/HR accounts trying to use standard employee portal */}
+                      {selectedProfile === 'Employee' && matchedPromotedUser && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl text-center space-y-3 w-full"
+                        >
+                          <ShieldCheck className="h-7 w-7 text-brand-primary mx-auto animate-pulse" />
+                          <h4 className="font-display font-bold text-[11px] text-brand-primary uppercase tracking-wider">
+                            Elevated Clearance Detected
+                          </h4>
+                          <p className="text-[10px] text-gray-300 leading-relaxed font-mono">
+                            Account <strong className="text-white">{matchedPromotedUser.name}</strong> is promoted to <span className="text-brand-primary font-bold uppercase">[{matchedPromotedUser.role}]</span> clearance.
+                          </p>
+                          <p className="text-[9px] text-gray-400 font-sans leading-relaxed">
+                            You do not need to log in via the Employee Portal. Please use the secure administrative panel instead.
+                          </p>
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => {
+                              handleSwitchProfile('Admin');
+                              setSelectedEmployee(matchedPromotedUser);
+                              setUsernameOrEmail(matchedPromotedUser.email);
+                            }}
+                            className="w-full py-2 bg-brand-primary hover:bg-brand-secondary text-brand-dark font-mono font-bold uppercase tracking-wider text-[9px] rounded-xl transition-all cursor-pointer border-none"
+                          >
+                            Switch to Admin Access
+                          </motion.button>
+                        </motion.div>
+                      )}
+
+                      {/* Password Input for Employees (Hidden until email/identity matches a user in the roster) */}
+                      {matchedEmployeeForPasscode ? (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          transition={{ duration: 0.25 }}
+                          className="space-y-4 pt-1 overflow-hidden"
+                        >
+                          <div>
+                            <label className="block text-gray-400 font-medium mb-1.5 font-mono uppercase tracking-wider text-[10px]">
+                              Access Passcode / Password
+                            </label>
+                            <div className="relative">
+                              <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                              <input
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                placeholder="Enter passcode"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                disabled={isAuthorizing}
+                                className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
+                                title="Employee password field"
+                                onKeyDown={checkCapsLock}
+                                onKeyUp={checkCapsLock}
+                                onFocus={checkCapsLockFocus}
+                                onBlur={() => setIsCapsLockOn(false)}
+                              />
+                              <motion.button
+                                type="button"
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white transition-colors cursor-pointer mr-1"
+                                title={showPassword ? 'Hide password' : 'Show password'}
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Eye className="h-3.5 w-3.5" />
+                                )}
+                              </motion.button>
+                            </div>
+                            <AnimatePresence>
+                              {isCapsLockOn && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="text-amber-400 mt-1.5 flex items-center gap-1.5 font-mono text-[10px] bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl animated animate-pulse"
+                                >
+                                  <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+                                  <span>Warning: CAPS LOCK is active</span>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+
+                            <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-500 font-mono">
+                              <span>Secure validation enabled</span>
+                              <span>Default Passcode: <strong className="text-brand-primary">callbox2026</strong></span>
+                            </div>
+                            
+                            {/* Forgot Passcode Button Trigger */}
+                            <div className="mt-2 text-right">
+                              <motion.button
+                                type="button"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                  setIsResettingPasscode(true);
+                                  setResetError('');
+                                  setResetVerificationId('');
+                                  setResetNewPasscode('');
+                                  setResetConfirmPasscode('');
+                                }}
+                                className="text-brand-accent hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0 inline-flex items-center gap-1 text-[10px] font-mono leading-none font-semibold hover:underline"
+                                title="Recover forgotten passcode"
+                              >
+                                Forgot Passcode?
+                              </motion.button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : null}
+
+                      <motion.button
+                        type="submit"
+                        disabled={isAuthorizing || !matchedEmployeeForPasscode}
+                        whileTap={(!isAuthorizing && matchedEmployeeForPasscode) ? { scale: 0.97 } : undefined}
+                        className="w-full py-3.5 bg-brand-primary hover:bg-brand-secondary disabled:bg-white/5 disabled:hover:bg-white/5 disabled:text-gray-500 text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all outline-none border-none cursor-pointer mt-2"
+                      >
+                        {isAuthorizing ? (
+                          <>
+                            <div className="h-4 w-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" />
+                            <span>Configuring Shell Environment...</span>
+                          </>
+                        ) : !matchedEmployeeForPasscode ? (
+                          'Identify Office Profile...'
+                        ) : (
+                          'Access Portal as Employee'
+                        )}
+                      </motion.button>
+                    </form>
+                  )}
+                </motion.div>
+              ) : selectedProfile === 'Admin' ? (
+                <motion.div
+                  key="Admin"
+                  custom={direction}
+                  initial={{ x: direction > 0 ? 120 : -120, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: direction < 0 ? 120 : -120, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                  className="w-full grid grid-cols-1 md:grid-cols-12 gap-6 py-2"
+                  id="admin-login-portal-section"
+                >
+                  {/* Available Admins list selection */}
+                  <div className="md:col-span-5 space-y-3 flex flex-col justify-center">
+                    <label className="block text-gray-400 font-medium font-mono uppercase tracking-wider text-[10px]">
+                      Step 1: Select Admin Account
+                    </label>
+                    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                      {employees.filter(emp => emp.role === 'Super Admin' || emp.role === 'HR').map(emp => {
+                        const isSelected = selectedEmployee?.id === emp.id;
+                        return (
+                          <motion.button
+                            key={emp.id}
+                            type="button"
+                            whileHover={{ scale: 1.015 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              playBeep(1100, 0.08);
+                              setSelectedEmployee(emp);
+                              setUsernameOrEmail(emp.email);
+                            }}
+                            onMouseEnter={() => {
+                              if (!isSelected) {
+                                playBeep(1100, 0.05);
+                              }
+                            }}
+                            onFocus={() => {
+                              if (!isSelected) {
+                                playBeep(1100, 0.05);
+                              }
+                            }}
+                            className={`w-full p-3 rounded-xl border text-left transition-all duration-300 flex items-center gap-3 cursor-pointer ${
+                              isSelected 
+                                ? 'bg-brand-primary/10 border-brand-primary/40' 
+                                : 'bg-[#111827]/40 border-white/5 hover:border-white/10'
+                            }`}
+                          >
+                            <div className="h-8 w-8 rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-[9px] uppercase shrink-0 overflow-hidden">
+                              {emp.avatarUrl ? (
+                                <img 
+                                  src={emp.avatarUrl} 
+                                  alt={emp.name} 
+                                  className="h-full w-full object-cover" 
+                                  referrerPolicy="no-referrer" 
+                                />
+                              ) : (
+                                <DefaultAvatar gender={emp.gender} name={emp.name} className="h-full w-full object-contain p-0.5" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-xs text-white truncate">
+                                {emp.name}
+                              </p>
+                              <span className="inline-block px-1.5 py-0.2 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 text-[8px] font-mono rounded mt-0.5 uppercase tracking-wide">
+                                {emp.role}
+                              </span>
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Password/Verification Form */}
+                  <form className="md:col-span-7 space-y-4 text-xs font-sans flex flex-col justify-center" onSubmit={handleLoginSubmit}>
+                    <div>
+                      <span className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Activated Identity</span>
+                      <p className="text-white text-xs font-semibold mb-3">
+                        {selectedEmployee ? selectedEmployee.name : employees.filter(emp => emp.role === 'Super Admin')[0]?.name || 'Werzkie Tim'}
+                      </p>
+                      
+                      <label className="block text-gray-400 font-medium mb-1.5 font-mono uppercase tracking-wider text-[10px]">
+                        Step 2: Enter Authorization Passcode
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          placeholder="Enter passcode"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          disabled={isAuthorizing}
+                          className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
+                          title="Administrative Password"
+                          onKeyDown={checkCapsLock}
+                          onKeyUp={checkCapsLock}
+                          onFocus={checkCapsLockFocus}
+                          onBlur={() => setIsCapsLockOn(false)}
+                        />
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white transition-colors cursor-pointer mr-1"
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </motion.button>
+                      </div>
+
+                      <AnimatePresence>
+                        {isCapsLockOn && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="text-amber-400 mt-2 flex items-center gap-1.5 font-mono text-[10px] bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl animate-pulse"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+                            <span>Warning: CAPS LOCK is active</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
 
                     <motion.button
                       type="submit"
-                      disabled={isAuthorizing || !matchedEmployeeForPasscode}
-                      whileTap={(!isAuthorizing && matchedEmployeeForPasscode) ? { scale: 0.97 } : undefined}
-                      className="w-full py-3.5 bg-brand-primary hover:bg-brand-secondary disabled:bg-white/5 disabled:hover:bg-white/5 disabled:text-gray-500 text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all outline-none border-none cursor-pointer mt-2"
+                      disabled={isAuthorizing}
+                      whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
+                      whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
+                      className="w-full py-3.5 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 border-none cursor-pointer mt-2"
                     >
                       {isAuthorizing ? (
                         <>
                           <div className="h-4 w-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" />
                           <span>Configuring Shell Environment...</span>
                         </>
-                      ) : !matchedEmployeeForPasscode ? (
-                        'Identify Office Profile...'
                       ) : (
-                        'Access Portal as Employee'
+                        'Verify Clearance Passcode'
                       )}
                     </motion.button>
                   </form>
-                )}
-
-              </div>
-            ) : selectedProfile === 'Admin' ? (
-              <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-12 gap-6 animate-fade-in" id="admin-login-portal-section">
-                
-                {/* Available Admins list selection */}
-                <div className="md:col-span-5 space-y-3 flex flex-col justify-center">
-                  <label className="block text-gray-400 font-medium font-mono uppercase tracking-wider text-[10px]">
-                    Step 1: Select Admin Account
-                  </label>
-                  <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
-                    {employees.filter(emp => emp.role === 'Super Admin' || emp.role === 'HR').map(emp => {
-                      const isSelected = selectedEmployee?.id === emp.id || 
-                                         (!selectedEmployee && emp.role === 'Super Admin' && usernameOrEmail === '');
-                      return (
-                        <motion.button
-                          key={emp.id}
-                          type="button"
-                          whileHover={{ scale: 1.015 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            playBeep(1100, 0.08);
-                            setSelectedEmployee(emp);
-                            setUsernameOrEmail(emp.email);
-                          }}
-                          onMouseEnter={() => {
-                            if (!isSelected) {
-                              playBeep(1100, 0.05);
-                              setSelectedEmployee(emp);
-                              setUsernameOrEmail(emp.email);
-                            }
-                          }}
-                          onFocus={() => {
-                            if (!isSelected) {
-                              playBeep(1100, 0.05);
-                              setSelectedEmployee(emp);
-                              setUsernameOrEmail(emp.email);
-                            }
-                          }}
-                          className={`w-full p-3 rounded-xl border text-left transition-all duration-300 flex items-center gap-3 cursor-pointer ${
-                            isSelected 
-                              ? 'bg-brand-primary/10 border-brand-primary/40' 
-                              : 'bg-[#111827]/40 border-white/5 hover:border-white/10'
-                          }`}
-                        >
-                          <div className="h-8 w-8 rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary flex items-center justify-center font-bold text-[9px] uppercase shrink-0 overflow-hidden">
-                            {emp.avatarUrl ? (
-                              <img 
-                                src={emp.avatarUrl} 
-                                alt={emp.name} 
-                                className="h-full w-full object-cover" 
-                                referrerPolicy="no-referrer" 
-                              />
-                            ) : (
-                              <DefaultAvatar gender={emp.gender} name={emp.name} className="h-full w-full object-contain p-0.5" />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-xs text-white truncate">
-                              {emp.name}
-                            </p>
-                            <span className="inline-block px-1.5 py-0.2 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 text-[8px] font-mono rounded mt-0.5 uppercase tracking-wide">
-                              {emp.role}
-                            </span>
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Password/Verification Form */}
-                <form className="md:col-span-7 space-y-4 text-xs font-sans flex flex-col justify-center" onSubmit={handleLoginSubmit}>
-                  <div>
-                    <span className="block text-gray-400 font-medium mb-1 font-mono uppercase tracking-wider text-[10px]">Activated Identity</span>
-                    <p className="text-white text-xs font-semibold mb-3">
-                      {selectedEmployee ? selectedEmployee.name : employees.filter(emp => emp.role === 'Super Admin')[0]?.name || 'Werzkie Tim'}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="Inactive"
+                  custom={direction}
+                  initial={{ x: direction > 0 ? 120 : -120, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: direction < 0 ? 120 : -120, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                  className="w-full space-y-4 text-center py-2 flex flex-col items-center"
+                >
+                  <div className="p-5 max-w-lg rounded-2xl border border-yellow-500/15 bg-yellow-500/5 text-yellow-500 font-sans space-y-2 leading-relaxed text-left">
+                    <p className="font-semibold text-white font-display text-sm">Sandboxed Inactive Portal</p>
+                    <p className="text-xs text-gray-300">
+                      Simulates a deactivated or offline employee account clearance state. In this mode, users are restricted to viewing <strong className="text-brand-accent">Designated Links Only</strong>.
                     </p>
-                    
-                    <label className="block text-gray-400 font-medium mb-1.5 font-mono uppercase tracking-wider text-[10px]">
-                      Step 2: Enter Authorization Passcode
-                    </label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        placeholder="Enter passcode"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={isAuthorizing}
-                        className="w-full bg-brand-dark/90 border border-white/10 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary disabled:opacity-50 font-mono text-[11px]"
-                        title="Administrative Password"
-                      />
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white transition-colors cursor-pointer mr-1"
-                        title={showPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-3.5 w-3.5" />
-                        ) : (
-                          <Eye className="h-3.5 w-3.5" />
-                        )}
-                      </motion.button>
-                    </div>
+                    <p className="text-[11px] text-gray-400 italic">
+                      No usernames, passwords, or credentials required—simply click beneath to check active link views.
+                    </p>
                   </div>
-
+                  
                   <motion.button
-                    type="submit"
+                    type="button"
+                    onClick={() => handleLoginSubmit()}
                     disabled={isAuthorizing}
                     whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
                     whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
-                    className="w-full py-3.5 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 border-none cursor-pointer mt-2"
+                    className="w-full max-w-sm py-3.5 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 border-none cursor-pointer mt-2"
                   >
                     {isAuthorizing ? (
                       <>
@@ -1054,44 +1236,12 @@ export default function LoginScreen({
                         <span>Configuring Shell Environment...</span>
                       </>
                     ) : (
-                      'Verify Clearance Passcode'
+                      'Access Portal as Inactive Guest'
                     )}
                   </motion.button>
-                </form>
-
-              </div>
-            ) : (
-              <div className="md:col-span-12 space-y-4 animate-fade-in text-center py-6 flex flex-col items-center">
-                <div className="p-5 max-w-lg rounded-2xl border border-yellow-500/15 bg-yellow-500/5 text-yellow-500 font-sans space-y-2 leading-relaxed text-left">
-                  <p className="font-semibold text-white font-display text-sm">Sandboxed Inactive Portal</p>
-                  <p className="text-xs text-gray-300">
-                    Simulates a deactivated or offline employee account clearance state. In this mode, users are restricted to viewing <strong className="text-brand-accent">Designated Links Only</strong>.
-                  </p>
-                  <p className="text-[11px] text-gray-400 italic">
-                    No usernames, passwords, or credentials required—simply click beneath to check active link views.
-                  </p>
-                </div>
-                
-                <motion.button
-                  type="button"
-                  onClick={() => handleLoginSubmit()}
-                  disabled={isAuthorizing}
-                  whileHover={!isAuthorizing ? { scale: 1.02 } : undefined}
-                  whileTap={!isAuthorizing ? { scale: 0.95 } : undefined}
-                  className="w-full max-w-sm py-3.5 bg-brand-primary hover:bg-brand-secondary text-brand-dark hover:gold-glow font-bold font-mono uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 border-none cursor-pointer mt-2"
-                >
-                  {isAuthorizing ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" />
-                      <span>Configuring Shell Environment...</span>
-                    </>
-                  ) : (
-                    'Access Portal as Inactive Guest'
-                  )}
-                </motion.button>
-              </div>
-            )}
-
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Interactive hints */}

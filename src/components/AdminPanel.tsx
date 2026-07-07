@@ -8,7 +8,7 @@ import { motion } from 'motion/react';
 import { 
   Users, Link, FileKey, Shield, ShieldCheck, Heart, Trash2, 
   Settings, CheckCircle, RefreshCw, UserPlus, FileWarning, KeyRound, BookmarkMinus, User, Upload, Sparkles,
-  Scan, Camera, Search, FileSpreadsheet, FileText, Printer
+  Scan, Camera, Search, FileSpreadsheet, FileText, Printer, Eye, EyeOff
 } from 'lucide-react';
 import { Employee, ResourceLink, UserRole, ApprovalRequest } from '../types';
 import DefaultAvatar from './DefaultAvatar';
@@ -124,6 +124,7 @@ export default function AdminPanel({
   const [empGender, setEmpGender] = useState<'Male' | 'Female'>('Male');
   const [empPasscode, setEmpPasscode] = useState('');
   const [showEmpPasscode, setShowEmpPasscode] = useState(false);
+  const [visiblePasscodes, setVisiblePasscodes] = useState<Record<string, boolean>>({});
   const [isScanning, setIsScanning] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -168,6 +169,9 @@ export default function AdminPanel({
     tlsVersion: string;
     ipMock: string;
     status: number;
+    previewType: string;
+    title: string;
+    description: string;
   } | null>(null);
 
   const playBeep = (freq = 800, duration = 0.15) => {
@@ -302,6 +306,36 @@ export default function AdminPanel({
       setNewCategory(category);
       setNewIcon(icon);
       setNewIsForInactive(isForInactive);
+
+      // Determine previewType from templateId or category
+      let previewType = 'custom';
+      if (templateId === 't1') previewType = 'analytics';
+      else if (templateId === 't2') previewType = 'dialer';
+      else if (templateId === 't3') previewType = 'payroll';
+      else if (templateId === 't4') previewType = 'it';
+
+      // Set highly precise template-specific Scan Diagnostic Report
+      setScanReport({
+        url: url,
+        protocol: 'HTTPS',
+        isSecure: true,
+        domain: url.replace('https://', '').split('/')[0] || 'callboxinc.com',
+        latency: templateId === 't1' ? 18 : templateId === 't2' ? 22 : templateId === 't3' ? 31 : 14,
+        extractedKeywords: templateId === 't1' ? ['Leaderboard', 'Scoreboard', 'Analytics', 'Conversion', 'Performance']
+                         : templateId === 't2' ? ['VOIP', 'SIP', 'Dialer', 'Comms', 'Connector']
+                         : templateId === 't3' ? ['Payroll', 'Appraisal', 'Salary', 'Gateway', 'Compensation']
+                         : ['Ticketing', 'Helpdesk', 'Support', 'Hardware', 'Troubleshooting'],
+        confidence: templateId === 't1' ? 99 : templateId === 't2' ? 98 : templateId === 't3' ? 99 : 97,
+        tlsVersion: templateId === 't1' ? 'TLS v1.3 (ECDHE-RSA-AES256-GCM-SHA384)'
+                  : templateId === 't2' ? 'TLS v1.3 (ECDHE-ECDSA-AES128-GCM-SHA256)'
+                  : templateId === 't3' ? 'TLS v1.3 (ChaCha20-Poly1305)'
+                  : 'TLS v1.3 (ECDHE-RSA-AES128-GCM-SHA256)',
+        ipMock: templateId === 't1' ? '172.24.8.15' : templateId === 't2' ? '172.24.12.94' : templateId === 't3' ? '172.24.40.112' : '172.24.100.41',
+        status: 200,
+        previewType: previewType,
+        title: title,
+        description: desc
+      });
 
       playBeep(1100, 0.25);
       setTimeout(() => playBeep(1400, 0.2), 90);
@@ -457,6 +491,13 @@ export default function AdminPanel({
       setNewIcon(icon);
       setNewIsForInactive(isForInactive);
 
+      // Determine previewType based on category
+      let previewType = 'custom';
+      if (category === 'Operations') previewType = 'analytics';
+      else if (category === 'Communication') previewType = 'dialer';
+      else if (category === 'Human Resources') previewType = 'payroll';
+      else if (category === 'IT Support') previewType = 'it';
+
       // Save a highly precise Scan Diagnostic Report
       setScanReport({
         url: targetUrl,
@@ -468,7 +509,10 @@ export default function AdminPanel({
         confidence: confidence,
         tlsVersion: 'TLS v1.3 (ChaCha20-Poly1305)',
         ipMock: `172.24.${Math.floor(10 + Math.random() * 240)}.${Math.floor(2 + Math.random() * 254)}`,
-        status: 200
+        status: 200,
+        previewType: previewType,
+        title: title,
+        description: desc
       });
 
       playBeep(900, 0.12);
@@ -1447,9 +1491,32 @@ export default function AdminPanel({
                         </td>
                         <td className="py-3">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono bg-white/5 border border-white/5 px-2 py-0.5 rounded text-[10px] text-brand-primary font-bold tracking-wide">
-                              {emp.password || '—'}
-                            </span>
+                            <div className="flex items-center gap-1 bg-white/5 border border-white/5 px-2 py-0.5 rounded text-[10px] text-brand-primary font-bold tracking-wide font-mono">
+                              <span>
+                                {emp.password 
+                                  ? (visiblePasscodes[emp.id] ? emp.password : '•'.repeat(emp.password.length)) 
+                                  : '—'}
+                              </span>
+                              {emp.password && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setVisiblePasscodes(prev => ({
+                                      ...prev,
+                                      [emp.id]: !prev[emp.id]
+                                    }));
+                                  }}
+                                  className="ml-1 text-gray-400 hover:text-brand-primary focus:outline-none p-0.5 rounded hover:bg-white/5 transition-colors"
+                                  title={visiblePasscodes[emp.id] ? "Hide passcode" : "Show passcode"}
+                                >
+                                  {visiblePasscodes[emp.id] ? (
+                                    <EyeOff className="w-3 h-3" />
+                                  ) : (
+                                    <Eye className="w-3 h-3" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
                             {emp.isPasscodeSetupComplete === false && (
                               <span className="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1 py-0.5 rounded font-mono font-bold animate-pulse" title="Needs Custom Passcode configuration on login">
                                 SETUP PENDING
@@ -1849,7 +1916,7 @@ export default function AdminPanel({
                     </div>
 
                     {scanReport.extractedKeywords.length > 0 && (
-                      <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                      <div className="pt-1 flex flex-wrap items-center gap-1.5 border-b border-cyan-500/10 pb-2.5">
                         <span className="text-gray-500 text-[9px]">EXTRACTED KEYWORDS:</span>
                         {scanReport.extractedKeywords.map((kw, i) => (
                           <span key={i} className="px-1.5 py-0.5 rounded bg-white/5 border border-white/5 text-gray-300 text-[8.5px]">
@@ -1858,6 +1925,229 @@ export default function AdminPanel({
                         ))}
                       </div>
                     )}
+
+                    {/* Live Viewport Screenshot / Landing Page Preview */}
+                    <div className="pt-1.5 space-y-1.5">
+                      <span className="text-gray-500 text-[9px] uppercase tracking-wider block">Live Viewport Screenshot Mockup:</span>
+                      
+                      <div className="w-full rounded-lg overflow-hidden border border-white/10 bg-brand-dark/95 flex flex-col font-sans select-none shadow-inner">
+                        {/* Browser Bar */}
+                        <div className="bg-white/5 px-2.5 py-1.5 flex items-center justify-between border-b border-white/5">
+                          <div className="flex gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500/80" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500/80" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/80" />
+                          </div>
+                          <div className="bg-black/40 rounded px-2 py-0.5 text-[8.5px] text-gray-400 font-mono flex items-center gap-1 w-2/3 max-w-[220px] truncate justify-center leading-none">
+                            <span className="text-emerald-400 text-[8px]">🔒</span> {scanReport.url}
+                          </div>
+                          <span className="text-[7.5px] font-mono text-gray-500 uppercase tracking-widest hidden sm:inline">Viewport [1200x800]</span>
+                        </div>
+
+                        {/* Screenshot Contents depending on previewType */}
+                        <div className="p-3 bg-brand-dark/95 text-gray-300 min-h-[145px] flex flex-col relative text-left">
+                          {scanReport.previewType === 'analytics' && (
+                            <div className="space-y-2 text-[9px] w-full">
+                              {/* Header */}
+                              <div className="flex items-center justify-between border-b border-white/5 pb-1">
+                                <span className="font-bold text-white font-display text-[9.5px] flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-brand-primary animate-pulse" />
+                                  Davao Central Analytics Dashboard
+                                </span>
+                                <span className="px-1 py-0.2 bg-emerald-500/10 text-emerald-400 text-[7px] rounded border border-emerald-500/20 uppercase font-mono font-bold">Live Node</span>
+                              </div>
+
+                              {/* Stats grid */}
+                              <div className="grid grid-cols-3 gap-1.5">
+                                <div className="bg-white/2 border border-white/5 p-1.5 rounded">
+                                  <span className="block text-gray-500 text-[7px] uppercase font-mono">Conv Rate</span>
+                                  <span className="block text-emerald-400 font-bold font-mono text-[10px]">4.82%</span>
+                                  <div className="w-full bg-white/5 h-0.5 rounded-full overflow-hidden mt-0.5">
+                                    <div className="bg-emerald-400 h-full w-[48%]" />
+                                  </div>
+                                </div>
+                                <div className="bg-white/2 border border-white/5 p-1.5 rounded">
+                                  <span className="block text-gray-500 text-[7px] uppercase font-mono">Total Dials</span>
+                                  <span className="block text-cyan-300 font-bold font-mono text-[10px]">12,492</span>
+                                  <div className="w-full bg-white/5 h-0.5 rounded-full overflow-hidden mt-0.5">
+                                    <div className="bg-cyan-300 h-full w-[78%]" />
+                                  </div>
+                                </div>
+                                <div className="bg-white/2 border border-white/5 p-1.5 rounded">
+                                  <span className="block text-gray-500 text-[7px] uppercase font-mono">SLA Uptime</span>
+                                  <span className="block text-brand-primary font-bold font-mono text-[10px]">99.98%</span>
+                                  <div className="w-full bg-white/5 h-0.5 rounded-full overflow-hidden mt-0.5">
+                                    <div className="bg-brand-primary h-full w-[99%]" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Performance Chart mockup */}
+                              <div className="bg-white/2 border border-white/5 p-1.5 rounded space-y-1">
+                                <span className="text-[7.5px] text-gray-500 font-mono uppercase block">Davao Peak Performance SLA Range</span>
+                                <div className="flex items-end gap-1 h-8 pt-1">
+                                  <div className="bg-cyan-500/30 w-full h-[30%] rounded-t hover:bg-cyan-500/60 transition-colors" />
+                                  <div className="bg-cyan-500/40 w-full h-[50%] rounded-t hover:bg-cyan-500/60 transition-colors" />
+                                  <div className="bg-cyan-500/50 w-full h-[45%] rounded-t hover:bg-cyan-500/60 transition-colors" />
+                                  <div className="bg-cyan-500/60 w-full h-[70%] rounded-t hover:bg-cyan-500/60 transition-colors" />
+                                  <div className="bg-brand-primary/80 w-full h-[85%] rounded-t hover:bg-brand-primary/100 transition-colors animate-pulse" />
+                                  <div className="bg-cyan-500/70 w-full h-[60%] rounded-t hover:bg-cyan-500/60 transition-colors" />
+                                  <div className="bg-cyan-500/40 w-full h-[40%] rounded-t hover:bg-cyan-500/60 transition-colors" />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {scanReport.previewType === 'dialer' && (
+                            <div className="space-y-2 text-[9px] w-full">
+                              {/* Header */}
+                              <div className="flex items-center justify-between border-b border-white/5 pb-1">
+                                <span className="font-bold text-white font-display text-[9.5px] flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                  SIP Dialer Central Router
+                                </span>
+                                <span className="px-1 py-0.2 bg-cyan-500/10 text-cyan-400 text-[7px] rounded border border-cyan-500/20 uppercase font-mono font-bold">Online</span>
+                              </div>
+
+                              <div className="grid grid-cols-12 gap-2">
+                                {/* Left side Dialpad mockup */}
+                                <div className="col-span-4 bg-white/2 border border-white/5 p-1 rounded text-center grid grid-cols-3 gap-0.5 text-[8px] font-mono">
+                                  {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map(num => (
+                                    <span key={num} className="bg-white/5 rounded py-0.5 text-gray-300 font-bold hover:bg-cyan-500/10 cursor-pointer">{num}</span>
+                                  ))}
+                                </div>
+
+                                {/* Right side Connection Info */}
+                                <div className="col-span-8 space-y-1">
+                                  <div className="bg-brand-primary/10 border border-brand-primary/20 rounded p-1.5 flex items-center justify-between">
+                                    <div className="space-y-0.5 text-left">
+                                      <span className="block text-[7px] uppercase font-mono text-brand-primary">Active Campaign Pipeline</span>
+                                      <span className="block font-bold text-white text-[8px] font-mono">US-EAST-RECRUIT-A</span>
+                                    </div>
+                                    <div className="h-2 w-2 rounded-full bg-brand-primary animate-ping" />
+                                  </div>
+
+                                  <div className="bg-white/2 border border-white/5 rounded p-1 text-[7.5px] font-mono space-y-0.5 text-gray-400 text-left">
+                                    <div>SIP REGISTER: <span className="text-emerald-400 font-bold">OK [200]</span></div>
+                                    <div>LATENCY: <span className="text-cyan-300 font-bold">14ms</span></div>
+                                    <div>CODEC: <span className="text-white">G.711u ALaw (64kbps)</span></div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Wavelength simulation */}
+                              <div className="flex items-center gap-1 bg-black/40 border border-white/5 p-1 rounded justify-center">
+                                <span className="text-[7px] font-mono text-gray-500 uppercase tracking-widest mr-1">RTP Wave:</span>
+                                <div className="flex gap-0.5 items-center h-4">
+                                  {[12, 18, 6, 24, 15, 30, 8, 20, 10, 25, 4, 12].map((h, i) => (
+                                    <div 
+                                      key={i} 
+                                      className="w-[2px] bg-cyan-400 rounded-full transition-all duration-300" 
+                                      style={{ height: `${h}px` }} 
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {scanReport.previewType === 'payroll' && (
+                            <div className="space-y-2 text-[9px] w-full">
+                              {/* Header */}
+                              <div className="flex items-center justify-between border-b border-white/5 pb-1">
+                                <span className="font-bold text-white font-display text-[9.5px] flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                                  Employee Self-Service Payroll Vault
+                                </span>
+                                <span className="px-1 py-0.2 bg-amber-500/10 text-amber-400 text-[7px] rounded border border-amber-500/20 uppercase font-mono font-bold">Secure SSL</span>
+                              </div>
+
+                              <div className="p-2 border border-amber-500/15 bg-amber-500/5 rounded-lg flex items-center gap-3">
+                                <div className="p-2 bg-amber-500/15 rounded-xl border border-amber-500/20 text-amber-400">
+                                  🔑
+                                </div>
+                                <div className="space-y-0.5 text-left">
+                                  <span className="block text-white font-bold text-[9px] font-display">Confidential Payroll Node</span>
+                                  <span className="block text-gray-400 text-[7.5px] leading-snug">Requires authorized Davao branch IP signature. Automatic credential handshakes verified.</span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-[8px] font-mono">
+                                <div className="bg-white/2 border border-white/5 p-1.5 rounded space-y-0.5 text-left">
+                                  <span className="text-gray-500 block">CURRENT PAYCYCLE:</span>
+                                  <span className="text-white font-bold block">JUNE 15 - JUNE 30</span>
+                                  <span className="text-emerald-400 block font-semibold">✓ Ready for release</span>
+                                </div>
+                                <div className="bg-white/2 border border-white/5 p-1.5 rounded space-y-0.5 text-left">
+                                  <span className="text-gray-500 block">ANNUAL AUDIT STATUS:</span>
+                                  <span className="text-white font-bold block">CLEARED (DOLE-11)</span>
+                                  <span className="text-amber-400 block font-semibold">! Compliance Active</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {scanReport.previewType === 'it' && (
+                            <div className="space-y-2 text-[9px] w-full">
+                              {/* Header */}
+                              <div className="flex items-center justify-between border-b border-white/5 pb-1">
+                                <span className="font-bold text-white font-display text-[9.5px] flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                                  IT Helpdesk & System Support Desk
+                                </span>
+                                <span className="px-1 py-0.2 bg-indigo-500/10 text-indigo-400 text-[7px] rounded border border-indigo-500/20 uppercase font-mono font-bold">Support Ext 512</span>
+                              </div>
+
+                              <div className="grid grid-cols-12 gap-2">
+                                <div className="col-span-5 bg-white/2 border border-white/5 p-1.5 rounded space-y-1 text-left">
+                                  <span className="text-[7.5px] font-mono uppercase text-gray-500 block">Open Tickets:</span>
+                                  <div className="space-y-1">
+                                    <div className="bg-red-500/10 border border-red-500/20 rounded p-0.5 px-1 flex justify-between items-center text-[7px]">
+                                      <span className="text-red-400 truncate font-mono">TKT-911 Softphone</span>
+                                      <span className="text-red-300 font-bold font-mono">CRIT</span>
+                                    </div>
+                                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded p-0.5 px-1 flex justify-between items-center text-[7px]">
+                                      <span className="text-yellow-400 truncate font-mono">TKT-904 Monitor</span>
+                                      <span className="text-yellow-300 font-bold font-mono">MED</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="col-span-7 bg-white/2 border border-white/5 p-1.5 rounded space-y-1 font-mono text-[7.5px] text-gray-400 text-left">
+                                  <span className="uppercase text-gray-500 text-[7px] block">Network Node Ping Array:</span>
+                                  <div>GATEWAY: <span className="text-emerald-400 font-bold">172.24.1.1 [OK]</span></div>
+                                  <div>FIBER LEASE: <span className="text-cyan-400 font-bold">LEASE-A (PRIMARY)</span></div>
+                                  <div>LOAD BALANCER: <span className="text-emerald-400">99.99% HEAL</span></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {scanReport.previewType === 'custom' && (
+                            <div className="space-y-2 text-[9px] w-full">
+                              {/* Header */}
+                              <div className="flex items-center justify-between border-b border-white/5 pb-1">
+                                <span className="font-bold text-white font-display text-[9.5px] flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" />
+                                  {scanReport.title}
+                                </span>
+                                <span className="px-1 py-0.2 bg-white/5 text-gray-300 text-[7px] rounded border border-white/10 uppercase font-mono">External Node</span>
+                              </div>
+
+                              <div className="flex flex-col items-center justify-center p-4 bg-white/2 border border-white/5 rounded-lg space-y-1.5 text-center">
+                                <span className="text-[14px]">🌐</span>
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-white text-[9px]">{scanReport.title}</span>
+                                  <p className="block text-gray-400 text-[7.5px] max-w-[280px] leading-relaxed mx-auto">
+                                    {scanReport.description || "Automated endpoint registration verified via proxy analysis."}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </div>

@@ -69,6 +69,7 @@ export interface SystemNotification {
   type: 'announcement' | 'hr' | 'resource' | 'it' | 'training';
   timestamp: string;
   isRead: boolean;
+  targetTab?: 'links' | 'bulletins' | 'resources' | 'profile' | 'analytics' | 'admin';
 }
 
 export interface AuditLog {

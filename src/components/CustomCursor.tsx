@@ -529,7 +529,7 @@ export default function CustomCursor() {
       )}
 
       {/* 2. Floating Cybernetic Telemetry and Neural Link Control Panel */}
-      <div className="fixed bottom-6 right-6 z-[80] font-mono text-xs select-none">
+      <div className="fixed bottom-6 left-6 z-[80] font-mono text-xs select-none flex flex-col items-start">
         
         {/* Toggle / HUD Expand Button */}
         <motion.button
@@ -559,7 +559,7 @@ export default function CustomCursor() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 15, scale: 0.95 }}
               transition={{ type: 'spring', damping: 22, stiffness: 220 }}
-              className="absolute bottom-14 right-0 w-80 glass-panel rounded-2xl p-4 sm:p-5 shadow-2xl border border-white/10 space-y-4"
+              className="absolute bottom-14 left-0 w-80 glass-panel rounded-2xl p-4 sm:p-5 shadow-2xl border border-white/10 space-y-4"
               id="neural-link-portal-hud"
             >
               {/* Header */}

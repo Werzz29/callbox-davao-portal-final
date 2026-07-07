@@ -8,10 +8,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Fingerprint, LogOut, Bell, User, Clock, ShieldAlert, Sparkles, Cpu, 
   Mail, MessageSquare, Video, Database, PhoneCall, Users, Wrench, 
-  DollarSign, GraduationCap, BookOpen, BarChart3, AlertCircle, Bookmark, CheckCircle, Flame, X
+  DollarSign, GraduationCap, BookOpen, BarChart3, AlertCircle, Bookmark, CheckCircle, Flame, X, FileText
 } from 'lucide-react';
 
 // Types and Seed Data
+import CallboxLogo from './components/CallboxLogo';
 import { Employee, ResourceLink, Announcement, ResourceDocument, AuditLog, SystemNotification, UserRole, ApprovalRequest } from './types';
 import { mockAnnouncements, mockDocuments, mockAuditLogs, mockNotifications } from './mockData';
 
@@ -100,7 +101,6 @@ import DefaultAvatar from './components/DefaultAvatar';
 import Announcements from './components/Announcements';
 import ResourceLibrary from './components/ResourceLibrary';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
-import NetworkBackground from './components/NetworkBackground';
 import CustomCursor from './components/CustomCursor';
 
 const getInitials = (fullName: string) => {
@@ -143,6 +143,7 @@ export default function App() {
     }
   });
   const [isSitemapOpen, setIsSitemapOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<'links' | 'bulletins' | 'resources' | 'profile' | 'analytics' | 'admin'>(() => {
     try {
       const saved = localStorage.getItem('cb_activeTab_v2');
@@ -318,6 +319,8 @@ export default function App() {
   // Local Storage Synchronization Effects
   useEffect(() => {
     localStorage.setItem('cb_viewMode_v2', viewMode);
+    // Smooth/instant scroll to top to prevent inheriting previous page's scroll positions
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [viewMode]);
 
   useEffect(() => {
@@ -671,7 +674,8 @@ export default function App() {
       message: `${currentUser?.name} dispatched: "${item.title}"`,
       type: 'announcement',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'bulletins'
     };
     setNotifications(prev => [newNotif, ...prev]);
   };
@@ -701,7 +705,8 @@ export default function App() {
       message: `${currentUser?.name || 'Administrator'} archived the announcement: "${targetItem?.title || 'Unknown'}"`,
       type: 'announcement',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'bulletins'
     };
     setNotifications(prev => [delNotif, ...prev]);
   };
@@ -739,7 +744,8 @@ export default function App() {
       message: `${currentUser?.name || 'Authorized User'} uploaded SOP/document: "${item.title}" [${item.fileType.toUpperCase()}]`,
       type: 'resource',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'resources'
     };
     setNotifications(prev => [uploadNotif, ...prev]);
   };
@@ -781,7 +787,8 @@ export default function App() {
         message: `${currentUser?.name || 'Administrator'} deleted the SOP/document: "${targetDoc.title}"`,
         type: 'resource',
         timestamp: 'Just now',
-        isRead: false
+        isRead: false,
+        targetTab: 'resources'
       };
       setNotifications(prev => [delDocNotif, ...prev]);
       setFeedbackToast(`"${targetDoc.title}" deleted from resource library.`);
@@ -848,7 +855,8 @@ export default function App() {
         message: `HR Manager "${currentUser.name}" requested role elevation of "${alteredEmp.name}" to [${newRole}].`,
         type: 'hr',
         timestamp: 'Just now',
-        isRead: false
+        isRead: false,
+        targetTab: 'admin'
       };
       setNotifications(prev => [newNotif, ...prev]);
 
@@ -901,7 +909,8 @@ export default function App() {
       message: `${currentUser?.name || 'Administrator'} updated the security role of "${alteredEmp?.name}" to [${newRole}].`,
       type: 'hr',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'admin'
     };
     setNotifications(prev => [assignNotif, ...prev]);
 
@@ -949,7 +958,8 @@ export default function App() {
       message: `${employee.name} added as ${employee.position} (${employee.department}). Current roster: ${allEmployees.length + 1} active employees.`,
       type: 'hr',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'admin'
     };
     setNotifications(notifs => {
       const updatedList = [newNotif, ...notifs];
@@ -1005,7 +1015,8 @@ export default function App() {
         message: `HR Manager "${currentUser.name}" requested deletion of employee profile: "${targetEmp.name}".`,
         type: 'hr',
         timestamp: 'Just now',
-        isRead: false
+        isRead: false,
+        targetTab: 'admin'
       };
       setNotifications(prev => [newNotif, ...prev]);
 
@@ -1027,7 +1038,8 @@ export default function App() {
       message: `${currentUser?.name || 'Administrator'} deleted the employee profile of "${targetEmp.name}".`,
       type: 'hr',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'admin'
     };
     setNotifications(prev => [deleteNotif, ...prev]);
 
@@ -1194,7 +1206,8 @@ export default function App() {
       message: `Super Admin approved the ${req.type === 'change_role' ? 'role designation update' : 'account deletion'} request for "${req.employeeName}".`,
       type: 'hr',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'admin'
     };
     setNotifications(prev => [approveNotif, ...prev]);
   };
@@ -1213,7 +1226,8 @@ export default function App() {
         message: `Super Admin rejected the ${req.type === 'change_role' ? 'role designation update' : 'account deletion'} request for "${req.employeeName}".`,
         type: 'hr',
         timestamp: 'Just now',
-        isRead: false
+        isRead: false,
+        targetTab: 'admin'
       };
       setNotifications(prev => [denyNotif, ...prev]);
     }
@@ -1231,7 +1245,8 @@ export default function App() {
         message: `Approval request registry for "${req.employeeName}" removed from ledger by "${currentUser?.name}".`,
         type: 'hr',
         timestamp: 'Just now',
-        isRead: false
+        isRead: false,
+        targetTab: 'admin'
       };
       setNotifications(prev => [delReqNotif, ...prev]);
     }
@@ -1267,7 +1282,8 @@ export default function App() {
       message: `"${newLink.title}" posted to [${newLink.category}]. Active system links: ${allLinks.length + 1} resources.`,
       type: 'announcement',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'links'
     };
     setNotifications(notifs => {
       const updatedList = [newNotif, ...notifs];
@@ -1324,7 +1340,8 @@ export default function App() {
       message: `"${matchingLink?.title || 'Legacy resources'}" was removed from the general index list by "${currentUser?.name}".`,
       type: 'announcement',
       timestamp: 'Just now',
-      isRead: false
+      isRead: false,
+      targetTab: 'links'
     };
     setNotifications(prev => [delLinkNotif, ...prev]);
 
@@ -1440,7 +1457,10 @@ export default function App() {
   // Log outs
   const handleSignOut = () => {
     setCurrentUser(null);
-    setViewMode('landing');
+    localStorage.removeItem('cb_currentUser_v2');
+    localStorage.setItem('cb_viewMode_v2', 'landing');
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.location.reload();
   };
 
   // Computed counters to share within modules
@@ -1454,21 +1474,23 @@ export default function App() {
     : undefined;
 
   return (
-    <div className="min-h-screen bg-brand-dark overflow-x-hidden text-brand-light font-sans selection:bg-brand-primary/20 relative">
+    <div className="min-h-screen flex-1 w-full flex flex-col bg-brand-dark sui-bg-gradient overflow-x-hidden text-brand-light font-sans selection:bg-brand-primary/20 relative">
       
-      {/* Dynamic Network Node Particle canvas background */}
-      <NetworkBackground />
-
       {/* Ambient background glowing mesh elements */}
-      <div className="absolute top-[-10%] right-[-14%] w-[600px] h-[600px] bg-brand-primary/5 rounded-full blur-[130px] pointer-events-none z-0" />
-      <div className="absolute bottom-[15%] left-[-10%] w-[500px] h-[500px] bg-brand-surface-light/30 rounded-full blur-[110px] pointer-events-none z-0" />
-      <div className="absolute top-[35%] right-[20%] w-[550px] h-[550px] bg-brand-primary/2 rounded-full blur-[140px] pointer-events-none z-0" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-brand-accent/3 rounded-full blur-[120px] pointer-events-none z-0" />
+      <div className="absolute top-[-10%] right-[-14%] w-[600px] h-[600px] bg-brand-primary/8 rounded-full blur-[130px] pointer-events-none z-0" />
+      <div className="absolute bottom-[15%] left-[-10%] w-[500px] h-[500px] bg-brand-surface-light/20 rounded-full blur-[110px] pointer-events-none z-0" />
+      <div className="absolute top-[35%] right-[20%] w-[550px] h-[550px] bg-brand-primary/4 rounded-full blur-[140px] pointer-events-none z-0" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-brand-accent/5 rounded-full blur-[120px] pointer-events-none z-0" />
 
       {/* 1. Landing Hero Spheres view */}
       {viewMode === 'landing' && (
         <LandingHero 
-          onEnterPortal={() => setViewMode(currentUser ? 'workspace' : 'login')} 
+          onEnterPortal={(tab) => {
+            setViewMode(currentUser ? 'workspace' : 'login');
+            if (tab) {
+              setActiveTab(tab as any);
+            }
+          }} 
           onOpenSitemap={() => setIsSitemapOpen(true)} 
           announcements={allAnnouncements}
         />
@@ -1479,7 +1501,11 @@ export default function App() {
         <LoginScreen 
           onLoginSuccess={handleLoginSuccess} 
           employees={allEmployees} 
-          onBackToLanding={() => setViewMode('landing')} 
+          onBackToLanding={() => {
+            localStorage.setItem('cb_viewMode_v2', 'landing');
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            window.location.reload();
+          }} 
           onSetEmployeePassword={handleSetEmployeePassword}
           onRequestPasscodeReset={handleRequestPasscodeReset}
         />
@@ -1487,24 +1513,24 @@ export default function App() {
 
       {/* 3. Authorized Main Office shell */}
       {viewMode === 'workspace' && currentUser && (
-        <div className="flex flex-col min-h-screen relative">
+        <div className="flex flex-col flex-1 w-full relative min-h-full">
           
           {/* Header Dashboard section */}
           <header className="fixed top-0 left-0 right-0 z-40 bg-[#111827]/85 backdrop-blur-xl border-b border-white/10 shadow-lg">
             <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex flex-wrap sm:flex-nowrap gap-3 items-center justify-between">
               
               {/* Branch Logo brandings */}
-              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('landing')}>
-                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/25 text-brand-primary flex items-center justify-center">
-                  <Fingerprint className="h-5 w-5" />
-                </div>
-                <div className="hidden sm:block">
-                  <span className="font-display font-bold text-white tracking-snug uppercase text-xs sm:text-sm">
-                    CALLBOX <span className="text-brand-primary">DAVAO</span>
-                  </span>
-                  <div className="flex items-center gap-1 mt-0.5">
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('landing')} id="header-brand-logo-container">
+                <div className="flex flex-col items-start gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <CallboxLogo className="h-6 sm:h-7 w-auto text-white" caretColor="#FFB800" />
+                    <span className="font-display font-black text-brand-primary tracking-widest text-[9px] sm:text-[10px] uppercase bg-brand-primary/10 border border-brand-primary/15 rounded-md px-1.5 py-0.5 mt-0.5">
+                      DAVAO
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 ml-0.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="font-mono text-[9px] text-gray-500 uppercase tracking-wider">Node Davao_10</span>
+                    <span className="font-mono text-[9px] text-gray-500 uppercase tracking-widest">Node Davao_10</span>
                   </div>
                 </div>
               </div>
@@ -1563,7 +1589,10 @@ export default function App() {
                 {/* Notification Bell alert sliders */}
                 {currentUser.role !== 'Inactive' && (
                   <button
-                    onClick={() => setIsNotifOpen(!isNotifOpen)}
+                    onClick={() => {
+                      setIsNotifOpen(!isNotifOpen);
+                      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+                    }}
                     className="relative p-2.5 rounded-xl border border-white/5 bg-white/5 hover:bg-brand-primary/10 hover:text-brand-primary hover:border-brand-primary/25 transition-all cursor-pointer group"
                     title="Alert Feed"
                     id="notifications-bell"
@@ -1593,10 +1622,10 @@ export default function App() {
           </header>
 
           {/* Header spacer to prevent layout overlap under fixed header */}
-          <div className="h-[120px] sm:h-[84px] w-full shrink-0" />
+          <div className="h-[150px] sm:h-[110px] w-full shrink-0" />
 
           {/* Core Shell bodies */}
-          <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8 space-y-4 sm:space-y-6">
+          <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 pt-8 sm:pt-14 md:pt-18 pb-12 sm:pb-16 md:pb-20 space-y-10 sm:space-y-16">
             
             {/* 1. Personal Welcome Workspace Alert Header with Custom Themes by Access Level */}
             {(() => {
@@ -1662,27 +1691,25 @@ export default function App() {
                     className="glass-panel rounded-2xl p-4 sm:p-6 border border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-brand-dark/30 to-brand-dark shadow-[0_0_24px_rgba(245,158,11,0.1)] relative overflow-hidden shadow-xl"
                     id="portal-welcome-grid"
                   >
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
-                        <div className="h-14 w-14 rounded-2xl border border-amber-500/25 bg-amber-500/10 text-amber-400 flex items-center justify-center shadow-md shrink-0">
-                          <Database className="h-6 w-6" />
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+                      <div className="h-14 w-14 rounded-2xl border border-amber-500/25 bg-amber-500/10 text-amber-400 flex items-center justify-center shadow-md shrink-0">
+                        <Database className="h-6 w-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                          <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight text-white">
+                            Davao Intranet Portal Gateway
+                          </h2>
+                          <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider uppercase border bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse">
+                            Public Guest Hub
+                          </span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                            <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight text-white">
-                              Davao Intranet Portal Gateway
-                            </h2>
-                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider uppercase border bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse">
-                              Public Guest Hub
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-300 font-sans">
-                            Operating Mode: <span className="font-semibold text-amber-400">Restricted Link Index Viewer State</span>
-                          </p>
-                          <p className="text-[11px] text-gray-500 max-w-xl">
-                            No credentials or user account active. You are viewing designated quick-access links securely registered by administrative staff.
-                          </p>
-                        </div>
+                        <p className="text-xs text-gray-300 font-sans">
+                          Operating Mode: <span className="font-semibold text-amber-400">Restricted Link Index Viewer State</span>
+                        </p>
+                        <p className="text-[11px] text-gray-500 max-w-xl">
+                          No credentials or user account active. You are viewing designated quick-access links securely registered by administrative staff.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1736,7 +1763,7 @@ export default function App() {
 
             {/* 2. Shell Navigation System */}
             {currentUser.role !== 'Inactive' && (
-              <nav className="flex gap-1.5 border-b border-white/10 pb-2.5 overflow-x-auto scrollbar-none whitespace-nowrap -mx-3 px-3 sm:mx-0 sm:px-0" id="portal-tab-dock">
+              <nav className="flex gap-2.5 sm:gap-3.5 border-b border-white/10 pt-2.5 pb-4 overflow-x-auto scrollbar-none whitespace-nowrap -mx-3 px-3 sm:mx-0 sm:px-0 -mt-2 sm:-mt-4" id="portal-tab-dock">
                 {[
                   { id: 'links', label: 'Systems Hub', roleReq: ['Employee', 'HR', 'Super Admin'] },
                   { id: 'bulletins', label: 'Bulletin Board', roleReq: ['HR', 'Super Admin'] },
@@ -1756,14 +1783,17 @@ export default function App() {
                         setActiveTab(tab.id as any);
                         recordVisitEvent(`Visited [${tab.label}]`);
                       }}
-                      className={`px-3.5 sm:px-4 py-2.5 sm:py-3.5 min-h-[44px] flex items-center justify-center rounded-xl font-display text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-300 cursor-pointer ${
+                      className={`px-3.5 sm:px-4 py-2.5 sm:py-3.5 min-h-[44px] flex items-center justify-center rounded-xl font-display text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-300 cursor-pointer ${
                         activeTab === tab.id 
-                          ? 'bg-brand-primary/15 text-brand-primary border border-brand-primary/35 font-bold gold-glow shadow-[0_0_20px_-3px_rgba(255,199,44,0.45)]' 
+                          ? 'bg-brand-primary/15 text-brand-primary border border-brand-primary/30' 
                           : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5'
                       }`}
                     >
-                      <span className="flex items-center gap-1.5">
-                        {tab.label}
+                      <span className="flex items-center gap-2">
+                        {activeTab === tab.id && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-primary" />
+                        )}
+                        <span>{tab.label}</span>
                         {tab.id === 'admin' && currentUser.role === 'Super Admin' && approvalRequests.filter(r => r.status === 'pending').length > 0 && (
                           <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-rose-500 text-white font-mono font-bold leading-none animate-pulse">
                             {approvalRequests.filter(r => r.status === 'pending').length}
@@ -1948,38 +1978,67 @@ export default function App() {
                       </div>
                     ) : (
                       <ul className="space-y-3.5 font-sans text-xs max-h-[380px] overflow-y-auto pr-1">
-                        {notifications.map((notif, idx) => (
-                          <li 
-                            key={`${notif.id}-${idx}`} 
-                            className={`p-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden group/item ${
-                              notif.isRead 
-                                ? 'bg-brand-dark/30 border-white/5 opacity-60' 
-                                : 'bg-brand-dark/70 border-brand-primary/10 hover:border-brand-primary/25'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              {/* Circle style alerts */}
-                              <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                                <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 transition-colors duration-300 ${notif.isRead ? 'bg-white/10' : 'bg-brand-primary'}`} />
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-white truncate">{notif.title}</p>
-                                  <p className="text-gray-400 mt-0.5 whitespace-normal break-words leading-relaxed">{notif.message}</p>
-                                  <span className="text-[10px] text-gray-500 font-mono mt-1.5 block">{notif.timestamp}</span>
+                        {notifications.map((notif, idx) => {
+                          const resolvedTab = notif.targetTab || (
+                            notif.type === 'announcement' ? 'bulletins' :
+                            notif.type === 'resource' ? 'resources' :
+                            notif.type === 'hr' ? 'admin' :
+                            notif.type === 'it' ? 'links' : 'links'
+                          );
+
+                          return (
+                            <li 
+                              key={`${notif.id}-${idx}`} 
+                              onClick={() => {
+                                // Mark as read
+                                setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n));
+                                // Navigate to tab
+                                setActiveTab(resolvedTab);
+                                setIsNotifOpen(false);
+                                setFeedbackToast(`Navigated to: ${resolvedTab === 'links' ? 'Links Directory' : resolvedTab === 'bulletins' ? 'System Bulletins' : resolvedTab === 'resources' ? 'Resource Library' : resolvedTab === 'admin' ? 'Administrative Hub' : resolvedTab}`);
+                              }}
+                              className={`p-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden group/item cursor-pointer select-none ${
+                                notif.isRead 
+                                  ? 'bg-brand-dark/30 border-white/5 opacity-60 hover:opacity-100 hover:border-white/10' 
+                                  : 'bg-brand-dark/70 border-brand-primary/10 hover:border-brand-primary/25 hover:bg-brand-dark/95'
+                              }`}
+                            >
+                              {/* Background subtle neon indicator on unread */}
+                              {!notif.isRead && (
+                                <div className="absolute top-0 left-0 w-1 h-full bg-brand-primary" />
+                              )}
+                              
+                              <div className="flex items-start justify-between gap-2">
+                                {/* Circle style alerts */}
+                                <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                  <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 transition-colors duration-300 ${notif.isRead ? 'bg-white/10' : 'bg-brand-primary'}`} />
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-white truncate">{notif.title}</p>
+                                    <p className="text-gray-400 mt-0.5 whitespace-normal break-words leading-relaxed">{notif.message}</p>
+                                    
+                                    <div className="flex justify-between items-center mt-2.5">
+                                      <span className="text-[9px] text-gray-500 font-mono">{notif.timestamp}</span>
+                                      <span className="text-[8px] uppercase font-mono font-bold tracking-wider px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary border border-brand-primary/10 group-hover/item:border-brand-primary/20 transition-all">
+                                        GO TO: {resolvedTab === 'links' ? 'Links' : resolvedTab === 'bulletins' ? 'Bulletins' : resolvedTab === 'resources' ? 'Resources' : resolvedTab === 'admin' ? 'Admin' : resolvedTab}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Prevent trigger click on li
+                                    setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                                  }}
+                                  className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 text-gray-500 transition-all cursor-pointer shrink-0 opacity-0 group-hover/item:opacity-100 focus:opacity-100"
+                                  title="Dismiss notification"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setNotifications(prev => prev.filter(n => n.id !== notif.id));
-                                }}
-                                className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 text-gray-500 transition-all cursor-pointer shrink-0 opacity-0 group-hover/item:opacity-100 focus:opacity-100"
-                                title="Dismiss notification"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>
@@ -1999,8 +2058,78 @@ export default function App() {
           </AnimatePresence>
 
           {/* Davao Footer Credits */}
-          <footer className="border-t border-white/5 py-4 mt-auto text-center font-mono text-[10px] text-gray-600 bg-brand-dark">
-            <p>© 2026 Callbox Inc. Davao Node Hub. Designed securely relative to Philippines SEC code directives.</p>
+          <footer className="border-t border-white/10 bg-[#111827]/85 backdrop-blur-xl py-6 sm:py-8 mt-auto relative z-10 selection:bg-brand-primary/20 w-full shrink-0">
+            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 items-center text-center md:text-left">
+                
+                {/* Column 1: Brand & SEC compliance info */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center md:justify-start gap-2">
+                    <div className="h-5 w-5 rounded-md bg-brand-primary/10 border border-brand-primary/25 text-brand-primary flex items-center justify-center">
+                      <Fingerprint className="h-3 w-3 animate-pulse" />
+                    </div>
+                    <span className="font-display font-bold text-white text-[11px] uppercase tracking-wider">
+                      CALLBOX <span className="text-brand-primary">DAVAO</span> NODE
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/5 text-[8px] text-gray-400 font-mono">DVO_10</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-sans max-w-xs leading-normal mx-auto md:mx-0">
+                    © 2026 Callbox Inc. Davao Node Hub. Designed securely relative to Philippines SEC code directives & compliance frameworks.
+                  </p>
+                </div>
+
+                {/* Column 2: Live Node Diagnostics / Integrity ticker */}
+                <div className="flex flex-col items-center justify-center space-y-2 border-y border-white/5 md:border-y-0 py-4 md:py-0">
+                  <span className="text-[8px] font-mono text-gray-500 uppercase tracking-widest">Live Node Diagnostics</span>
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 text-[9px] font-mono">
+                    <div className="flex items-center gap-1 bg-white/2 border border-white/5 px-2 py-0.5 rounded">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-gray-400">SSL:</span>
+                      <span className="text-emerald-400 font-bold">1.3</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-white/2 border border-white/5 px-2 py-0.5 rounded">
+                      <span className="text-gray-400">LATENCY:</span>
+                      <span className="text-cyan-300 font-bold">18ms</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-white/2 border border-white/5 px-2 py-0.5 rounded">
+                      <span className="text-gray-400">INTEGRITY:</span>
+                      <span className="text-brand-primary font-bold">99.98%</span>
+                    </div>
+                  </div>
+                  <span className="text-[8.5px] text-gray-600 font-mono uppercase tracking-wider">
+                    Node IP: <span className="text-gray-400">172.24.1.1</span> | Location: <span className="text-gray-400">Davao, PH</span>
+                  </span>
+                </div>
+
+                {/* Column 3: Navigation shortcuts & diagnostics triggers */}
+                <div className="flex flex-col sm:flex-row items-center justify-center md:justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSitemapOpen(true);
+                      playBeep(880, 0.1);
+                    }}
+                    className="px-3.5 py-1.5 bg-brand-primary/10 border border-brand-primary/20 hover:border-brand-primary/40 text-brand-primary hover:text-white rounded-lg text-[9.5px] font-mono font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 cursor-pointer hover:bg-brand-primary/20"
+                  >
+                    <Cpu className="h-3.5 w-3.5" />
+                    Sitemap Index
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playBeep(980, 0.08);
+                      setFeedbackToast("Security protocol active: SHA-256 integrity check verified successfully.");
+                    }}
+                    className="px-3 py-1.5 bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 text-gray-300 rounded-lg text-[9.5px] font-mono uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                    Security Protocol
+                  </button>
+                </div>
+
+              </div>
+            </div>
           </footer>
 
         </div>

@@ -6,14 +6,14 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-brand-primary: #FFC72C;
-  --color-brand-secondary: #FFD84D;
-  --color-brand-accent: #FFB800;
-  --color-brand-dark: #0a0f1a;
-  --color-brand-surface: rgba(17, 24, 39, 0.55);
-  --color-brand-surface-light: rgba(31, 41, 55, 0.65);
-  --color-brand-light: #F9FAFB;
-  --color-brand-success: #22C55E;
+  --color-brand-primary: #38bdf8;
+  --color-brand-secondary: #0088FF;
+  --color-brand-accent: #00F0FF;
+  --color-brand-dark: #030712;
+  --color-brand-surface: rgba(15, 23, 42, 0.45);
+  --color-brand-surface-light: rgba(30, 41, 59, 0.55);
+  --color-brand-light: #F8FAFC;
+  --color-brand-success: #10B981;
 }
 
 /* Custom scrollbar */
@@ -23,7 +23,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0f1a;
+  background: #030712;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -32,13 +32,19 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #FFC72C;
+  background: #38bdf8;
 }
 
-/* Ensure no horizontal layout overflow on body due to breakouts */
-html, body {
+/* Ensure no horizontal layout overflow on body due to breakouts and keep footers perfectly flush at bottom */
+html, body, #root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
   max-width: 100vw;
+  margin: 0;
+  padding: 0;
 }
 
 /* Glassmorphism custom classes */
@@ -56,43 +62,53 @@ html, body {
 
 .glass-panel-hover:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 199, 44, 0.25);
-  box-shadow: 0 15px 45px -5px rgba(0, 0, 0, 0.8), 0 0 25px -3px rgba(255, 199, 44, 0.15);
+  border-color: rgba(56, 189, 248, 0.25);
+  box-shadow: 0 15px 45px -5px rgba(0, 0, 0, 0.8), 0 0 25px -3px rgba(56, 189, 248, 0.15);
   transform: translateY(-2px);
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, #FFFFFF 20%, #FFD84D 70%, #FFB800 100%);
+  background: linear-gradient(135deg, #FFFFFF 20%, #38bdf8 70%, #00f0ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* Premium Golden Glow Shadow Styles (Multi-layered, high-fidelity) */
+/* Premium Blue Glow Shadow Styles (Multi-layered, high-fidelity) */
 .gold-glow {
-  box-shadow: 0 0 20px -2px rgba(255, 199, 44, 0.35), 0 0 40px -10px rgba(255, 184, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 20px -2px rgba(56, 189, 248, 0.35), 0 0 40px -10px rgba(0, 240, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .gold-glow:hover {
-  box-shadow: 0 0 32px 1px rgba(255, 199, 44, 0.55), 0 0 55px -4px rgba(255, 184, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 32px 1px rgba(56, 189, 248, 0.55), 0 0 55px -4px rgba(0, 240, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
 }
 
-/* Dynamic ambient breathing gold glow */
+/* Dynamic ambient breathing blue glow */
 @keyframes goldPulse {
   0% {
-    box-shadow: 0 0 14px -1px rgba(255, 199, 44, 0.35), 0 0 25px -5px rgba(255, 184, 0, 0.15);
+    box-shadow: 0 0 14px -1px rgba(56, 189, 248, 0.35), 0 0 25px -5px rgba(0, 240, 255, 0.15);
   }
   50% {
-    box-shadow: 0 0 30px 4px rgba(255, 199, 44, 0.6), 0 0 48px 2px rgba(255, 184, 0, 0.35);
+    box-shadow: 0 0 30px 4px rgba(56, 189, 248, 0.6), 0 0 48px 2px rgba(0, 240, 255, 0.35);
   }
   100% {
-    box-shadow: 0 0 14px -1px rgba(255, 199, 44, 0.35), 0 0 25px -5px rgba(255, 184, 0, 0.15);
+    box-shadow: 0 0 14px -1px rgba(56, 189, 248, 0.35), 0 0 25px -5px rgba(0, 240, 255, 0.15);
   }
 }
 
 .gold-glow-pulse {
   animation: goldPulse 2.8s infinite ease-in-out;
+}
+
+/* Sui/Awwwards-style premium deep gradient background */
+.sui-bg-gradient {
+  background-color: #030712;
+  background-image: 
+    radial-gradient(ellipse at 50% 60%, rgba(0, 114, 255, 0.26) 0%, rgba(0, 240, 255, 0.10) 30%, rgba(3, 7, 18, 1) 80%),
+    radial-gradient(circle at 100% 0%, rgba(56, 189, 248, 0.08) 0%, rgba(3, 7, 18, 0) 50%),
+    radial-gradient(circle at 0% 100%, rgba(0, 240, 255, 0.05) 0%, rgba(3, 7, 18, 0) 50%);
+  position: relative;
 }
 
 /* Subtle elegant float motion for high-priority cards */
@@ -200,13 +216,13 @@ button:focus-visible {
   #portal-tab-dock::-webkit-scrollbar-thumb,
   #active-roster-table-container::-webkit-scrollbar-thumb,
   #smart-link-hub-module > div:nth-child(2)::-webkit-scrollbar-thumb {
-    background: rgba(255, 199, 44, 0.45) !important;
+    background: rgba(56, 189, 248, 0.45) !important;
     border-radius: 99px !important;
   }
   #portal-tab-dock::-webkit-scrollbar-thumb:hover,
   #active-roster-table-container::-webkit-scrollbar-thumb:hover,
   #smart-link-hub-module > div:nth-child(2)::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 199, 44, 0.8) !important;
+    background: rgba(56, 189, 248, 0.8) !important;
   }
   #portal-tab-dock::-webkit-scrollbar-track,
   #active-roster-table-container::-webkit-scrollbar-track,
