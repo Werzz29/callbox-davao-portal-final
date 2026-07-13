@@ -8,28 +8,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Fingerprint, LogOut, Bell, User, Clock, ShieldAlert, Sparkles, Cpu, 
   Mail, MessageSquare, Video, Database, PhoneCall, Users, Wrench, 
-  DollarSign, GraduationCap, BookOpen, BarChart3, AlertCircle, Bookmark, CheckCircle, Flame, X, FileText
+  DollarSign, GraduationCap, BookOpen, BarChart3, AlertCircle, Bookmark, CheckCircle, Flame, X, FileText, ShieldCheck,
+  Search, ArrowUpRight, Download, HelpCircle
 } from 'lucide-react';
 
 // Types and Seed Data
 import CallboxLogo from './components/CallboxLogo';
 import { Employee, ResourceLink, Announcement, ResourceDocument, AuditLog, SystemNotification, UserRole, ApprovalRequest } from './types';
 import { mockAnnouncements, mockDocuments, mockAuditLogs, mockNotifications } from './mockData';
-
-const defaultAdmin: Employee = {
-  id: 'emp-01',
-  name: 'Werzkie Tim',
-  email: 'werzkie.tim@callboxinc.com',
-  position: 'Chief Operations Officer',
-  department: 'Executive',
-  role: 'Super Admin',
-  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop',
-  phone: '+63 917 123 4567',
-  empId: 'CB-2021-001F',
-  joinedDate: '2021-04-12',
-  gender: 'Female',
-  password: 'callbox2026'
-};
 
 const restrictedAdmin: Employee = {
   id: 'emp-superadmin-restricted',
@@ -44,36 +30,6 @@ const restrictedAdmin: Employee = {
   joinedDate: '2026-06-01',
   gender: 'Male',
   password: 'callboxdavaoadmin'
-};
-
-const defaultEmployee1: Employee = {
-  id: 'emp-02',
-  name: 'Jane Doe',
-  email: 'jane.doe@callboxinc.com',
-  position: 'Operations Specialist',
-  department: 'APAC',
-  role: 'Employee',
-  avatarUrl: '',
-  phone: '+63 920 111 2222',
-  empId: 'CB-2023-014F',
-  joinedDate: '2023-11-04',
-  gender: 'Female',
-  password: 'callbox2026'
-};
-
-const defaultEmployee2: Employee = {
-  id: 'emp-03',
-  name: 'John Smith',
-  email: 'john.smith@callboxinc.com',
-  position: 'Lead Campaign Executive',
-  department: 'Operations',
-  role: 'Employee',
-  avatarUrl: '',
-  phone: '+63 918 333 4444',
-  empId: 'CB-2024-023M',
-  joinedDate: '2024-02-18',
-  gender: 'Male',
-  password: 'callbox2026'
 };
 
 // Supabase Integration Services
@@ -92,6 +48,8 @@ import {
 
 // Modular Workspace Components
 import SitemapOverlay from './components/SitemapOverlay';
+import PolicyOverlay from './components/PolicyOverlay';
+import PolicyAcceptanceModal from './components/PolicyAcceptanceModal';
 import LandingHero from './components/LandingHero';
 import LoginScreen from './components/LoginScreen';
 import LinkHub from './components/LinkHub';
@@ -143,6 +101,21 @@ export default function App() {
     }
   });
   const [isSitemapOpen, setIsSitemapOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState<Employee | null>(null);
+  const [policyOpenTab, setPolicyOpenTab] = useState<'terms' | 'privacy' | 'community' | null>(null);
+  const [hasAcceptedPolicies, setHasAcceptedPolicies] = useState<boolean>(() => {
+    try {
+      const savedUser = localStorage.getItem('cb_currentUser_v2');
+      if (!savedUser) return true;
+      const parsedUser = JSON.parse(savedUser) as Employee;
+      const accepted = localStorage.getItem(`cb_policies_accepted_by_${parsedUser.id}`);
+      return accepted === 'true';
+    } catch {
+      return false;
+    }
+  });
   
   const [activeTab, setActiveTab] = useState<'links' | 'bulletins' | 'resources' | 'profile' | 'analytics' | 'admin'>(() => {
     try {
@@ -168,11 +141,23 @@ export default function App() {
     }
   });
 
+  const [autoLogoutMessage, setAutoLogoutMessage] = useState<string>('');
+
   // Core Data Lists with State Management to support interactive creates/deletes
   const [allEmployees, setAllEmployees] = useState<Employee[]>(() => {
     try {
       const saved = localStorage.getItem('cb_allEmployees_v2');
-      const emps: Employee[] = saved ? JSON.parse(saved) : [defaultAdmin, restrictedAdmin, defaultEmployee1, defaultEmployee2];
+      let emps: Employee[] = saved ? JSON.parse(saved) : [restrictedAdmin];
+      
+      // Filter out default admin and default employee profiles
+      emps = emps.filter(e => 
+        e.id !== 'emp-01' && 
+        e.email !== 'werzkie.tim@callboxinc.com' && 
+        e.id !== 'emp-02' && 
+        e.email !== 'jane.doe@callboxinc.com' && 
+        e.id !== 'emp-03' && 
+        e.email !== 'john.smith@callboxinc.com'
+      );
       
       const seenIds = new Set<string>();
       let changed = false;
@@ -217,7 +202,7 @@ export default function App() {
       }
       return cleanEmps;
     } catch {
-      return [defaultAdmin, restrictedAdmin];
+      return [restrictedAdmin];
     }
   });
   const [allLinks, setAllLinks] = useState<ResourceLink[]>(() => {
@@ -225,11 +210,15 @@ export default function App() {
       const saved = localStorage.getItem('cb_allLinks_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (!Array.isArray(parsed) || parsed.length === 0) {
-          localStorage.removeItem('cb_allLinks_v3');
-          return [];
+        if (Array.isArray(parsed)) {
+          // Filter out default preset/template links so they are removed
+          const filtered = parsed.filter(l => l && l.id !== 't1' && l.id !== 't2' && l.id !== 't3' && l.id !== 't4');
+          if (filtered.length === 0) {
+            localStorage.removeItem('cb_allLinks_v3');
+            return [];
+          }
+          return filtered;
         }
-        return parsed;
       }
       return [];
     } catch {
@@ -316,6 +305,53 @@ export default function App() {
     }
   });
 
+  // Inactivity Auto-Logout Tracker (15 minutes of inactivity)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+
+    const performAutoLogout = () => {
+      setCurrentUser(null);
+      localStorage.removeItem('cb_currentUser_v2');
+      localStorage.setItem('cb_viewMode_v2', 'login');
+      setAutoLogoutMessage('Your session has expired due to 15 minutes of inactivity. Please log in again to enhance portal security.');
+      setViewMode('login');
+    };
+
+    const resetInactivityTimer = () => {
+      if (timerId) {
+        clearTimeout(timerId);
+      }
+      timerId = setTimeout(performAutoLogout, INACTIVITY_TIMEOUT_MS);
+    };
+
+    resetInactivityTimer();
+
+    const interactionEvents = [
+      'mousemove',
+      'keydown',
+      'mousedown',
+      'touchstart',
+      'click',
+      'scroll'
+    ];
+
+    interactionEvents.forEach(eventName => {
+      window.addEventListener(eventName, resetInactivityTimer, { passive: true });
+    });
+
+    return () => {
+      if (timerId) {
+        clearTimeout(timerId);
+      }
+      interactionEvents.forEach(eventName => {
+        window.removeEventListener(eventName, resetInactivityTimer);
+      });
+    };
+  }, [currentUser]);
+
   // Local Storage Synchronization Effects
   useEffect(() => {
     localStorage.setItem('cb_viewMode_v2', viewMode);
@@ -340,8 +376,11 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('cb_currentUser_v2', JSON.stringify(currentUser));
+      const accepted = localStorage.getItem(`cb_policies_accepted_by_${currentUser.id}`);
+      setHasAcceptedPolicies(accepted === 'true');
     } else {
       localStorage.removeItem('cb_currentUser_v2');
+      setHasAcceptedPolicies(false);
     }
   }, [currentUser]);
 
@@ -1425,6 +1464,7 @@ export default function App() {
     setCurrentUser(user);
     setViewMode('workspace');
     setActiveTab('links');
+    setAutoLogoutMessage('');
 
     // Register login event
     const today = new Date().toISOString().split('T')[0];
@@ -1468,19 +1508,102 @@ export default function App() {
   const documentsDownloadTotal = allDocuments.reduce((sum, doc) => sum + doc.downloadCount, 0);
   const unreadNotifCount = notifications.filter(n => !n.isRead).length;
 
+  // Filter search results simultaneously across staff (employees), central links, and documents
+  const filteredEmployees = globalSearchQuery.trim() === '' ? [] : allEmployees.filter(emp => {
+    const query = globalSearchQuery.toLowerCase();
+    return (
+      emp.name.toLowerCase().includes(query) ||
+      emp.email.toLowerCase().includes(query) ||
+      emp.position.toLowerCase().includes(query) ||
+      emp.department.toLowerCase().includes(query) ||
+      emp.empId.toLowerCase().includes(query)
+    );
+  });
+
+  const filteredLinks = globalSearchQuery.trim() === '' ? [] : allLinks.filter(link => {
+    // Only show links the user has authorization for
+    const isPermitted = currentUser && (
+      currentUser.role === 'Inactive' ? link.isForInactive :
+      currentUser.role === 'Employee' ? (link.postedByRole === 'Super Admin' || link.postedByRole === 'HR') :
+      true
+    );
+    if (!isPermitted) return false;
+
+    const query = globalSearchQuery.toLowerCase();
+    return (
+      link.title.toLowerCase().includes(query) ||
+      link.url.toLowerCase().includes(query) ||
+      link.category.toLowerCase().includes(query) ||
+      (link.description && link.description.toLowerCase().includes(query))
+    );
+  });
+
+  const filteredDocs = globalSearchQuery.trim() === '' ? [] : allDocuments.filter(doc => {
+    const query = globalSearchQuery.toLowerCase();
+    return (
+      doc.title.toLowerCase().includes(query) ||
+      doc.description.toLowerCase().includes(query) ||
+      doc.category.toLowerCase().includes(query) ||
+      doc.fileType.toLowerCase().includes(query)
+    );
+  });
+
+  const totalResultsCount = filteredEmployees.length + filteredLinks.length + filteredDocs.length;
+
+  const handleLinkClickInSearch = (link: ResourceLink) => {
+    handleIncrementLinkCount(link.id);
+    setFeedbackToast(`Launching Central Link "${link.title}"...`);
+    window.open(link.url, '_blank');
+    setGlobalSearchQuery('');
+    setShowSearchResults(false);
+  };
+
+  const handleDownloadInSearch = (doc: ResourceDocument) => {
+    handleDownloadDoc(doc.id);
+    setFeedbackToast(`Downloading document "${doc.title}"...`);
+    const fileUrl = "data:text/plain;charset=utf-8," + encodeURIComponent("Callbox Document Content for " + doc.title);
+    const link = document.createElement("a");
+    link.href = fileUrl;
+    link.download = `${doc.title.replace(/\s+/g, "_")}.${doc.fileType}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setGlobalSearchQuery('');
+    setShowSearchResults(false);
+  };
+
   // Check if active user has any pending unacknowledged critical physical node update
   const activeCriticalAnnouncement = (currentUser && currentUser.role !== 'Inactive') 
     ? allAnnouncements.find(ann => ann.isCritical && !acknowledgedCriticalIds.includes(ann.id))
     : undefined;
 
+  // Disable body scroll when overlays are open
+  useEffect(() => {
+    const isPolicyUnaccepted = viewMode === 'workspace' && currentUser && !hasAcceptedPolicies;
+    const isAnyOverlayOpen = isSitemapOpen || isNotifOpen || !!activeCriticalAnnouncement || !!policyOpenTab || isPolicyUnaccepted || !!selectedEmployeeDetails;
+    if (isAnyOverlayOpen) {
+      document.body.classList.add('scroll-locked');
+      document.documentElement.classList.add('scroll-locked');
+    } else {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    }
+    return () => {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    };
+  }, [isSitemapOpen, isNotifOpen, activeCriticalAnnouncement, policyOpenTab, viewMode, currentUser, hasAcceptedPolicies, selectedEmployeeDetails]);
+
   return (
     <div className="min-h-screen flex-1 w-full flex flex-col bg-brand-dark sui-bg-gradient overflow-x-hidden text-brand-light font-sans selection:bg-brand-primary/20 relative">
       
-      {/* Ambient background glowing mesh elements */}
-      <div className="absolute top-[-10%] right-[-14%] w-[600px] h-[600px] bg-brand-primary/8 rounded-full blur-[130px] pointer-events-none z-0" />
-      <div className="absolute bottom-[15%] left-[-10%] w-[500px] h-[500px] bg-brand-surface-light/20 rounded-full blur-[110px] pointer-events-none z-0" />
-      <div className="absolute top-[35%] right-[20%] w-[550px] h-[550px] bg-brand-primary/4 rounded-full blur-[140px] pointer-events-none z-0" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-brand-accent/5 rounded-full blur-[120px] pointer-events-none z-0" />
+      {/* Ambient background glowing mesh elements wrapped to prevent bottom/side overflow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] right-[-14%] w-[600px] h-[600px] bg-brand-primary/8 rounded-full blur-[130px]" />
+        <div className="absolute bottom-[15%] left-[-10%] w-[500px] h-[500px] bg-brand-surface-light/20 rounded-full blur-[110px]" />
+        <div className="absolute top-[35%] right-[20%] w-[550px] h-[550px] bg-brand-primary/4 rounded-full blur-[140px]" />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-brand-accent/5 rounded-full blur-[120px]" />
+      </div>
 
       {/* 1. Landing Hero Spheres view */}
       {viewMode === 'landing' && (
@@ -1492,6 +1615,10 @@ export default function App() {
             }
           }} 
           onOpenSitemap={() => setIsSitemapOpen(true)} 
+          onOpenPolicy={(tab) => {
+            setPolicyOpenTab(tab);
+            playBeep(880, 0.1);
+          }}
           announcements={allAnnouncements}
         />
       )}
@@ -1508,12 +1635,13 @@ export default function App() {
           }} 
           onSetEmployeePassword={handleSetEmployeePassword}
           onRequestPasscodeReset={handleRequestPasscodeReset}
+          initialErrorMessage={autoLogoutMessage}
         />
       )}
 
       {/* 3. Authorized Main Office shell */}
       {viewMode === 'workspace' && currentUser && (
-        <div className="flex flex-col flex-1 w-full relative min-h-full">
+        <div className="flex flex-col flex-1 w-full relative">
           
           {/* Header Dashboard section */}
           <header className="fixed top-0 left-0 right-0 z-40 bg-[#111827]/85 backdrop-blur-xl border-b border-white/10 shadow-lg">
@@ -1572,6 +1700,182 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Global Search input & results popup overlay */}
+              <div className="relative w-full sm:w-60 md:w-72 lg:w-80 order-last sm:order-none" id="header-global-search-container">
+                <div className="relative z-50">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search employees, links, docs..."
+                    value={globalSearchQuery}
+                    onChange={(e) => {
+                      setGlobalSearchQuery(e.target.value);
+                      setShowSearchResults(true);
+                    }}
+                    onFocus={() => setShowSearchResults(true)}
+                    className="w-full pl-9 pr-8 py-1.5 bg-brand-surface/40 hover:bg-brand-surface/70 focus:bg-brand-surface border border-white/5 hover:border-brand-primary/20 focus:border-brand-primary/40 focus:ring-1 focus:ring-brand-primary/20 rounded-xl text-xs text-white placeholder-gray-500 font-sans transition-all duration-300 outline-none"
+                  />
+                  {globalSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGlobalSearchQuery('');
+                        setShowSearchResults(false);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Click-away overlay mask (only active when dropdown is open and query exists) */}
+                {showSearchResults && globalSearchQuery && (
+                  <div 
+                    className="fixed inset-0 z-40 bg-transparent" 
+                    onClick={() => setShowSearchResults(false)} 
+                  />
+                )}
+
+                {/* Dropdown Popover */}
+                <AnimatePresence>
+                  {showSearchResults && globalSearchQuery && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      className="absolute top-full left-0 right-0 mt-2 bg-[#1f2937]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-[360px] overflow-y-auto flex flex-col"
+                      id="global-search-results-popover"
+                    >
+                      {/* Results Header */}
+                      <div className="px-4 py-3 border-b border-white/5 bg-[#111827]/60 flex justify-between items-center text-[10px] font-mono text-gray-400 select-none">
+                        <span>SEARCH RESULTS ({totalResultsCount})</span>
+                        {totalResultsCount > 0 && <span className="text-brand-primary font-bold">CLICK TO ACTIVATE</span>}
+                      </div>
+
+                      {/* No Results Fallback */}
+                      {totalResultsCount === 0 && (
+                        <div className="py-8 text-center flex flex-col items-center justify-center gap-2 select-none">
+                          <HelpCircle className="h-6 w-6 text-gray-600 animate-pulse" />
+                          <p className="text-xs text-gray-400 font-medium">No results found for "{globalSearchQuery}"</p>
+                          <p className="text-[10px] text-gray-500 font-mono">Try searching names, positions, categories, or filetypes.</p>
+                        </div>
+                      )}
+
+                      {/* Employees Section */}
+                      {filteredEmployees.length > 0 && (
+                        <div className="p-1 border-b border-white/5">
+                          <p className="px-2.5 py-1.5 text-[9px] font-mono font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5 select-none">
+                            <Users className="h-3 w-3" /> STAFF DIRECTORY ({filteredEmployees.length})
+                          </p>
+                          <div className="space-y-0.5">
+                            {filteredEmployees.map(emp => (
+                              <button
+                                key={emp.id}
+                                onClick={() => {
+                                  setSelectedEmployeeDetails(emp);
+                                  setShowSearchResults(false);
+                                  setGlobalSearchQuery('');
+                                }}
+                                className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-white/5 flex items-center justify-between group transition-all cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="h-7 w-7 rounded-lg border border-white/10 overflow-hidden bg-white/5 shrink-0 flex items-center justify-center">
+                                    {emp.avatarUrl ? (
+                                      <img src={emp.avatarUrl} alt={emp.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <DefaultAvatar gender={emp.gender} name={emp.name} className="h-full w-full object-contain p-0.5" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-white truncate group-hover:text-brand-primary transition-colors">{emp.name}</p>
+                                    <p className="text-[9px] text-gray-400 truncate">{emp.position} • {emp.department}</p>
+                                  </div>
+                                </div>
+                                <span className="text-[8px] font-mono uppercase bg-white/5 px-1.5 py-0.5 rounded text-gray-400 group-hover:bg-brand-primary/20 group-hover:text-brand-primary transition-all shrink-0">
+                                  View Info
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Central Links Section */}
+                      {filteredLinks.length > 0 && (
+                        <div className="p-1 border-b border-white/5">
+                          <p className="px-2.5 py-1.5 text-[9px] font-mono font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5 select-none">
+                            <Bookmark className="h-3 w-3" /> SYSTEMS HUB ({filteredLinks.length})
+                          </p>
+                          <div className="space-y-0.5">
+                            {filteredLinks.map(link => (
+                              <button
+                                key={link.id}
+                                onClick={() => handleLinkClickInSearch(link)}
+                                className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-white/5 flex items-center justify-between group transition-all cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="h-7 w-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 shrink-0 flex items-center justify-center text-cyan-400">
+                                    <Bookmark className="h-3.5 w-3.5" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-white truncate group-hover:text-brand-primary transition-colors">{link.title}</p>
+                                    <p className="text-[9px] text-gray-400 truncate">{link.category} • {link.description || 'Callbox Davao'}</p>
+                                  </div>
+                                </div>
+                                <span className="text-[8px] font-mono uppercase bg-white/5 px-1.5 py-0.5 rounded text-gray-400 group-hover:bg-cyan-400/20 group-hover:text-cyan-400 transition-all flex items-center gap-1 shrink-0">
+                                  Launch <ArrowUpRight className="h-2 w-2" />
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SOP & Documents Section */}
+                      {filteredDocs.length > 0 && (
+                        <div className="p-1">
+                          <p className="px-2.5 py-1.5 text-[9px] font-mono font-bold text-brand-primary uppercase tracking-wider flex items-center gap-1.5 select-none">
+                            <FileText className="h-3 w-3" /> RESOURCES & SOPS ({filteredDocs.length})
+                          </p>
+                          <div className="space-y-0.5">
+                            {filteredDocs.map(doc => {
+                              let fileTypeBadge = 'text-red-400';
+                              if (doc.fileType === 'xlsx') fileTypeBadge = 'text-emerald-400';
+                              if (doc.fileType === 'docx') fileTypeBadge = 'text-blue-400';
+                              if (doc.fileType === 'pptx') fileTypeBadge = 'text-amber-400';
+
+                              return (
+                                <button
+                                  key={doc.id}
+                                  onClick={() => handleDownloadInSearch(doc)}
+                                  className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-white/5 flex items-center justify-between group transition-all cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="h-7 w-7 rounded-lg bg-amber-500/10 border border-amber-500/20 shrink-0 flex items-center justify-center text-amber-400">
+                                      <FileText className="h-3.5 w-3.5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-white truncate group-hover:text-brand-primary transition-colors">{doc.title}</p>
+                                      <p className="text-[9px] text-gray-400 truncate">
+                                        <span className={`font-bold ${fileTypeBadge}`}>{doc.fileType.toUpperCase()}</span> • {doc.category} ({doc.fileSize})
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className="text-[8px] font-mono uppercase bg-white/5 px-1.5 py-0.5 rounded text-gray-400 group-hover:bg-brand-primary/20 group-hover:text-brand-primary transition-all flex items-center gap-1 shrink-0">
+                                    Get <Download className="h-2 w-2" />
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Real-time branch clocks */}
@@ -2106,6 +2410,18 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
+                      setPolicyOpenTab('terms');
+                      playBeep(880, 0.1);
+                    }}
+                    className="px-3.5 py-1.5 bg-brand-secondary/10 border border-brand-secondary/20 hover:border-brand-secondary/40 text-brand-secondary hover:text-white rounded-lg text-[9.5px] font-mono font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 cursor-pointer hover:bg-brand-secondary/20"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Guidelines & Terms
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
                       setIsSitemapOpen(true);
                       playBeep(880, 0.1);
                     }}
@@ -2137,6 +2453,183 @@ export default function App() {
 
       {/* 4. Global Interactive Core Sitemaps & Diagrams Drawer */}
       <SitemapOverlay isOpen={isSitemapOpen} onClose={() => setIsSitemapOpen(false)} />
+
+      {/* 4.6 Contact Details Popover Modal */}
+      <AnimatePresence>
+        {selectedEmployeeDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" id="employee-detail-modal-container">
+            {/* Click-away backdrop */}
+            <div className="absolute inset-0 bg-transparent" onClick={() => setSelectedEmployeeDetails(null)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="relative w-full max-w-md bg-brand-surface border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+              id="employee-detail-modal-card"
+            >
+              {/* Header/Banner */}
+              <div className="bg-brand-primary/10 border-b border-brand-primary/20 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="h-4 w-4 text-brand-primary animate-pulse" />
+                  <span className="font-mono text-[10px] text-brand-primary font-bold tracking-widest uppercase">
+                    SECURE STAFF DIRECTORY
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedEmployeeDetails(null)}
+                  className="p-1 rounded-lg border border-white/10 hover:bg-white/10 text-xs font-mono text-gray-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              {/* Main Profile Info */}
+              <div className="p-6 space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-2xl border border-brand-primary/25 bg-brand-primary/10 flex items-center justify-center overflow-hidden shrink-0 shadow-md">
+                    {selectedEmployeeDetails.avatarUrl ? (
+                      <img 
+                        src={selectedEmployeeDetails.avatarUrl} 
+                        alt={selectedEmployeeDetails.name} 
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <DefaultAvatar gender={selectedEmployeeDetails.gender} name={selectedEmployeeDetails.name} className="h-full w-full object-contain p-1" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white tracking-snug">{selectedEmployeeDetails.name}</h3>
+                    <p className="text-xs text-gray-400">{selectedEmployeeDetails.position}</p>
+                    <p className="text-[10px] text-brand-primary font-mono mt-1 bg-brand-primary/5 border border-brand-primary/10 px-2 py-0.5 rounded-lg inline-block">
+                      {selectedEmployeeDetails.department}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Detailed Parameters */}
+                <div className="space-y-3 pt-4 border-t border-white/5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-mono">EMPLOYEE ID:</span>
+                    <span className="text-white font-mono font-semibold">{selectedEmployeeDetails.empId}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-mono">PORTAL PRIVILEGE:</span>
+                    <span className="text-brand-primary font-mono font-bold uppercase">{selectedEmployeeDetails.role}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-mono">DATE JOINED:</span>
+                    <span className="text-gray-300 font-mono">{selectedEmployeeDetails.joinedDate || '2026-06-01'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-mono">GENDER:</span>
+                    <span className="text-gray-300">{selectedEmployeeDetails.gender || 'Not Specified'}</span>
+                  </div>
+                </div>
+
+                {/* Contact Actions */}
+                <div className="space-y-2 pt-4 border-t border-white/5 font-mono text-xs">
+                  <div>
+                    <span className="text-gray-500 block mb-1">OFFICIAL EMAIL:</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-brand-dark/40 border border-white/5">
+                      <span className="text-white select-all truncate max-w-[240px]">{selectedEmployeeDetails.email}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedEmployeeDetails.email);
+                          setFeedbackToast("Copied corporate email to clipboard.");
+                          playBeep(900, 0.08);
+                        }}
+                        className="px-2 py-1 rounded bg-brand-primary/10 hover:bg-brand-primary hover:text-brand-dark border border-brand-primary/15 text-brand-primary text-[10px] transition-all cursor-pointer font-bold"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block mb-1">CONTACT MOBILE:</span>
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-brand-dark/40 border border-white/5">
+                      <span className="text-white select-all">{selectedEmployeeDetails.phone || '+63 920 000 0000'}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedEmployeeDetails.phone || '+63 920 000 0000');
+                          setFeedbackToast("Copied mobile number to clipboard.");
+                          playBeep(900, 0.08);
+                        }}
+                        className="px-2 py-1 rounded bg-brand-primary/10 hover:bg-brand-primary hover:text-brand-dark border border-brand-primary/15 text-brand-primary text-[10px] transition-all cursor-pointer font-bold"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="bg-brand-dark/30 border-t border-white/5 px-6 py-4 flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    window.location.href = `mailto:${selectedEmployeeDetails.email}`;
+                    playBeep(800, 0.1);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-brand-dark border border-brand-primary/15 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Send Email
+                </button>
+                <button
+                  onClick={() => setSelectedEmployeeDetails(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-white/5"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 4.1 Legal & Operational Policies Drawer */}
+      <PolicyOverlay 
+        isOpen={!!policyOpenTab} 
+        initialTab={policyOpenTab || 'terms'} 
+        onClose={() => setPolicyOpenTab(null)} 
+      />
+
+      {/* 4.2 Policy Acceptance Modal for Workspace Entrance */}
+      {currentUser && (
+        <PolicyAcceptanceModal
+          isOpen={viewMode === 'workspace' && !hasAcceptedPolicies}
+          currentUser={currentUser}
+          onAccept={() => {
+            localStorage.setItem(`cb_policies_accepted_by_${currentUser.id}`, 'true');
+            setHasAcceptedPolicies(true);
+            playBeep(600, 0.2);
+            setFeedbackToast(`Compliance authorization secured. Welcome back to Davao Portal.`);
+            
+            // Log acceptance in audit logs
+            const today = new Date().toISOString().split('T')[0];
+            const newLog: AuditLog = {
+              id: `log-${Date.now()}`,
+              timestamp: `${today} ${new Date().toTimeString().slice(0, 5)}`,
+              actor: currentUser.name,
+              role: currentUser.role,
+              action: 'Accepted Updated Policies',
+              target: 'Compliance Node RA-10173',
+              status: 'SUCCESS'
+            };
+            setAuditLogs(prev => [newLog, ...prev]);
+          }}
+          onDecline={() => {
+            playBeep(440, 0.15);
+            setFeedbackToast("Access denied. You must agree to the updated compliance rules.");
+            // Log out gracefully
+            handleSignOut();
+          }}
+          onReviewPolicy={(tab) => {
+            setPolicyOpenTab(tab);
+          }}
+        />
+      )}
 
       {/* 4.5 Custom Cybernetic Interactive Cursor & Tracker */}
       <CustomCursor />

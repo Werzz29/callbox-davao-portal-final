@@ -47,6 +47,12 @@ html, body, #root {
   padding: 0;
 }
 
+/* Prevent scrolling entirely when modal/overlay is open */
+html.scroll-locked,
+body.scroll-locked {
+  overflow: hidden !important;
+}
+
 /* Glassmorphism custom classes */
 .glass-panel {
   background: rgba(255, 255, 255, 0.04);

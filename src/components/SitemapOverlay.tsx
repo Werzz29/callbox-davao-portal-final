@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Network, Database, FolderGit2, CalendarRange, Workflow, ShieldCheck, Cpu 
@@ -17,11 +17,25 @@ interface SitemapOverlayProps {
 export default function SitemapOverlay({ isOpen, onClose }: SitemapOverlayProps) {
   const [activeTab, setActiveTab] = useState<'sitemap' | 'schema' | 'folder' | 'flows'>('sitemap');
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('scroll-locked');
+      document.documentElement.classList.add('scroll-locked');
+    } else {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    }
+    return () => {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-[100] flex items-center justify-end bg-black/80 backdrop-blur-md">
         <motion.div 
           initial={{ x: '100%' }}
           animate={{ x: 0 }}

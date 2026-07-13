@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   Users, Link, FileKey, Shield, ShieldCheck, Heart, Trash2, 
@@ -135,6 +135,21 @@ export default function AdminPanel({
   const [passwordPromptUser, setPasswordPromptUser] = useState<{ empId: string; empName: string; role: UserRole } | null>(null);
   const [customPasswordInput, setCustomPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
+
+  // Lock body scroll when password setup modal is open
+  useEffect(() => {
+    if (passwordPromptUser) {
+      document.body.classList.add('scroll-locked');
+      document.documentElement.classList.add('scroll-locked');
+    } else {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    }
+    return () => {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    };
+  }, [passwordPromptUser]);
 
   const handleRoleChangeSelect = (empId: string, empName: string, newRole: UserRole) => {
     if (newRole === 'Super Admin' || newRole === 'HR') {
@@ -1440,21 +1455,21 @@ export default function AdminPanel({
                     <span>No matching accounts found for "{searchQuery}"</span>
                   </div>
                 ) : (
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-white/10 text-brand-primary pb-2 font-mono uppercase text-[10px]">
-                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Employee Name</th>
-                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Shift</th>
-                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Team</th>
-                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Scope</th>
-                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Passcode</th>
-                        <th className="py-2.5 text-right sticky top-0 bg-brand-dark/95 backdrop-blur z-10">Authorize Level</th>
+                  <table className="w-full text-left text-xs border-collapse block md:table">
+                    <thead className="hidden md:table-header-group">
+                      <tr className="border-b border-white/10 text-brand-primary pb-2 font-mono uppercase text-[10px] md:table-row">
+                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10 md:table-cell">Employee Name</th>
+                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10 md:table-cell">Shift</th>
+                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10 md:table-cell">Team</th>
+                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10 md:table-cell">Scope</th>
+                        <th className="py-2.5 sticky top-0 bg-brand-dark/95 backdrop-blur z-10 md:table-cell">Passcode</th>
+                        <th className="py-2.5 text-right sticky top-0 bg-brand-dark/95 backdrop-blur z-10 md:table-cell">Authorize Level</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="block md:table-row-group divide-y divide-white/5 md:divide-none">
                       {sortedEmployees.map((emp) => (
-                      <tr key={emp.id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
-                        <td className="py-3">
+                      <tr key={emp.id} className="border border-white/10 md:border-0 md:border-b md:border-white/5 bg-white/[0.01] md:bg-transparent rounded-2xl p-4 md:p-0 mb-4 md:mb-0 flex flex-col md:table-row hover:bg-white/2 transition-colors gap-2.5 md:gap-0">
+                        <td className="py-1.5 md:py-3 block md:table-cell">
                           <div className="flex items-center gap-2.5">
                             <div 
                               className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/25 flex items-center justify-center text-brand-primary shrink-0 shadow-sm overflow-hidden"
@@ -1477,9 +1492,16 @@ export default function AdminPanel({
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 font-mono text-gray-400">{emp.department}</td>
-                        <td className="py-3 text-gray-300">{emp.position}</td>
-                        <td className="py-3">
+                        <td className="py-1.5 md:py-3 block md:table-cell flex items-center justify-between md:justify-start">
+                          <span className="md:hidden text-gray-500 font-mono text-[9px] uppercase tracking-wider font-bold">Shift:</span>
+                          <span className="font-mono text-gray-400">{emp.department}</span>
+                        </td>
+                        <td className="py-1.5 md:py-3 block md:table-cell flex items-center justify-between md:justify-start">
+                          <span className="md:hidden text-gray-500 font-mono text-[9px] uppercase tracking-wider font-bold">Team:</span>
+                          <span className="text-gray-300">{emp.position}</span>
+                        </td>
+                        <td className="py-1.5 md:py-3 block md:table-cell flex items-center justify-between md:justify-start">
+                          <span className="md:hidden text-gray-500 font-mono text-[9px] uppercase tracking-wider font-bold">Scope:</span>
                           <span className={`inline-flex px-2 py-0.5 rounded text-[9px] uppercase font-bold font-mono tracking-tight ${
                             emp.role === 'Super Admin' ? 'bg-red-500/15 text-red-400 border border-red-500/10' :
                             emp.role === 'HR' ? 'bg-brand-primary/10 text-brand-primary border border-brand-primary/10' :
@@ -1489,7 +1511,8 @@ export default function AdminPanel({
                             {emp.role}
                           </span>
                         </td>
-                        <td className="py-3">
+                        <td className="py-1.5 md:py-3 block md:table-cell flex items-center justify-between md:justify-start">
+                          <span className="md:hidden text-gray-500 font-mono text-[9px] uppercase tracking-wider font-bold">Passcode:</span>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <div className="flex items-center gap-1 bg-white/5 border border-white/5 px-2 py-0.5 rounded text-[10px] text-brand-primary font-bold tracking-wide font-mono">
                               <span>
@@ -1525,10 +1548,11 @@ export default function AdminPanel({
                           </div>
                         </td>
                         {/* Select tool to change roles */}
-                        <td className="py-3 text-right">
-                          <div className="flex items-center justify-end gap-2 pr-2">
+                        <td className="py-1.5 md:py-3 block md:table-cell flex items-center justify-between md:justify-end text-right">
+                          <span className="md:hidden text-gray-500 font-mono text-[9px] uppercase tracking-wider font-bold">Actions:</span>
+                          <div className="flex items-center justify-end gap-2 pr-0 md:pr-2">
                             {deletingId === emp.id ? (
-                              <div className="flex items-center gap-1.5 min-w-[140px]">
+                              <div className="flex items-center gap-1.5 min-w-[140px] justify-end">
                                 <span className="text-[10px] font-mono text-rose-400 font-bold uppercase tracking-tight mr-1">Are you sure?</span>
                                 <button
                                   type="button"
@@ -1548,7 +1572,7 @@ export default function AdminPanel({
                                   No
                                 </button>
                               </div>
-                             ) : (
+                            ) : (
                               <>
                                 <select
                                   value={emp.role}

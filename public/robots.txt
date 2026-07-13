@@ -1,0 +1,6 @@
+# robots.txt for Callbox Davao Employee Portal
+# This is a private employee-only corporate system. 
+# Search engines are instructed not to crawl or index this portal.
+
+User-agent: *
+Disallow: /

@@ -253,6 +253,22 @@ export default function LinkHub({
 
   // Embedded Sandbox Workspace Viewer
   const [sandboxLink, setSandboxLink] = useState<ResourceLink | null>(null);
+
+  // Lock body scroll when sandbox modal or launching transition dialog is open
+  useEffect(() => {
+    const isAnyModalOpen = !!sandboxLink || !!launchingLink;
+    if (isAnyModalOpen) {
+      document.body.classList.add('scroll-locked');
+      document.documentElement.classList.add('scroll-locked');
+    } else {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    }
+    return () => {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    };
+  }, [sandboxLink, launchingLink]);
   const [sandboxIframeLoading, setSandboxIframeLoading] = useState<boolean>(true);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
   const [viewLayout, setViewLayout] = useState<'carousel' | 'grid'>('carousel');

@@ -18,6 +18,7 @@ interface LoginScreenProps {
   onBackToLanding?: () => void;
   onSetEmployeePassword?: (empId: string, passcode: string) => void;
   onRequestPasscodeReset?: (empId: string, empName: string, requestedPasscode: string) => void;
+  initialErrorMessage?: string;
 }
 
 export default function LoginScreen({ 
@@ -25,7 +26,8 @@ export default function LoginScreen({
   employees, 
   onBackToLanding, 
   onSetEmployeePassword,
-  onRequestPasscodeReset
+  onRequestPasscodeReset,
+  initialErrorMessage
 }: LoginScreenProps) {
   const [selectedProfile, setSelectedProfile] = useState<'Employee' | 'Admin' | 'Inactive'>('Employee');
   const [direction, setDirection] = useState<number>(0);
@@ -41,7 +43,13 @@ export default function LoginScreen({
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [password, setPassword] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState(initialErrorMessage || '');
+
+  React.useEffect(() => {
+    if (initialErrorMessage) {
+      setErrorMessage(initialErrorMessage);
+    }
+  }, [initialErrorMessage]);
   const [setupSuccessMessage, setSetupSuccessMessage] = useState('');
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
-  User, Mail, CheckCircle, Clock, Users, Camera, Trash2, AlertCircle, Link, Phone, Lock, Key, RefreshCw
+  User, Mail, CheckCircle, Clock, Users, Camera, Trash2, AlertCircle, Link, Phone, Lock, Key, RefreshCw, ShieldCheck
 } from 'lucide-react';
 import { Employee, PortalActivity } from '../types';
 import DefaultAvatar from './DefaultAvatar';
@@ -41,6 +41,14 @@ export default function ProfilePage({
   employees = [],
   onRequestPasswordReset
 }: ProfilePageProps) {
+  const hasAcceptedPolicies = React.useMemo(() => {
+    try {
+      return localStorage.getItem(`cb_policies_accepted_by_${currentUser.id}`) === 'true';
+    } catch {
+      return false;
+    }
+  }, [currentUser]);
+
   // Input fields state
   const [name, setName] = useState(currentUser.name);
   const [position, setPosition] = useState(currentUser.position);
@@ -203,6 +211,18 @@ export default function ProfilePage({
                 <span className="text-gray-300">
                   {currentUser.joinedDate}
                 </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Policy Agreement:</span>
+                {hasAcceptedPolicies ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold uppercase tracking-wider">
+                    <ShieldCheck className="h-3 w-3" /> ACCEPTED
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold uppercase tracking-wider animate-pulse">
+                    PENDING REVIEW
+                  </span>
+                )}
               </div>
             </div>
           </div>

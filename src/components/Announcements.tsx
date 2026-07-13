@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Pin, Calendar, User, Newspaper, Plus, Search, Archive, ChevronRight, X, Clock,
@@ -30,6 +30,22 @@ export default function Announcements({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [newsDrawerItem, setNewsDrawerItem] = useState<Announcement | null>(null);
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
+
+  // Lock body scroll when announcement drawer or modal is open
+  useEffect(() => {
+    const isAnyModalOpen = !!newsDrawerItem || isPublishingModalOpen;
+    if (isAnyModalOpen) {
+      document.body.classList.add('scroll-locked');
+      document.documentElement.classList.add('scroll-locked');
+    } else {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    }
+    return () => {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    };
+  }, [newsDrawerItem, isPublishingModalOpen]);
 
   // Form states for creating announcement
   const [formTitle, setFormTitle] = useState('');

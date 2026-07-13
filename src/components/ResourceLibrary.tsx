@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileText, Search, Download, HelpCircle, ArrowUpRight, Upload, X, ShieldAlert,
@@ -34,6 +34,22 @@ export default function ResourceLibrary({
   
   // Custom upload drawer states
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+
+  // Lock body scroll when upload drawer or downloading modal is open
+  useEffect(() => {
+    const isAnyModalOpen = isUploadOpen || !!downloadingDoc;
+    if (isAnyModalOpen) {
+      document.body.classList.add('scroll-locked');
+      document.documentElement.classList.add('scroll-locked');
+    } else {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    }
+    return () => {
+      document.body.classList.remove('scroll-locked');
+      document.documentElement.classList.remove('scroll-locked');
+    };
+  }, [isUploadOpen, downloadingDoc]);
   const [formTitle, setFormTitle] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formCategory, setFormCategory] = useState<ResourceDocument['category']>('SOPs');
